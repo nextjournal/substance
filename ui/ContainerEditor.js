@@ -3,7 +3,9 @@
 var isString = require('lodash/isString');
 var each = require('lodash/each');
 var last = require('lodash/last');
+var extend = require('lodash/extend');
 var uuid = require('../util/uuid');
+var keys = require('../util/keys');
 var EditingBehavior = require('../model/EditingBehavior');
 var insertText = require('../model/transform/insertText');
 var copySelection = require('../model/transform/copySelection');
@@ -14,6 +16,8 @@ var switchTextType = require('../model/transform/switchTextType');
 var paste = require('../model/transform/paste');
 var Surface = require('./Surface');
 var RenderingEngine = require('./RenderingEngine');
+var IsolatedNodeComponent = require('./IsolatedNodeComponent');
+var NestedSurface = require('./NestedSurface');
 
 /**
   Represents a flow editor that manages a sequence of nodes in a container. Needs to be
@@ -50,6 +54,8 @@ var RenderingEngine = require('./RenderingEngine');
 function ContainerEditor() {
   Surface.apply(this, arguments);
 
+  this.willReceiveProps(this.props);
+
   this.containerId = this.props.containerId;
   if (!isString(this.props.containerId)) {
     throw new Error("Illegal argument: Expecting containerId.");
@@ -60,6 +66,8 @@ function ContainerEditor() {
     throw new Error('Container with id ' + this.containerId + ' does not exist.');
   }
   this.editingBehavior = new EditingBehavior();
+
+  this._nestedEditors = {};
 }
 
 ContainerEditor.Prototype = function() {
@@ -73,8 +81,18 @@ ContainerEditor.Prototype = function() {
     return false;
   };
 
+  this.willReceiveProps = function(newProps) {
+    _super.willReceiveProps.apply(this, arguments);
+
+    if (!newProps.hasOwnProperty('enabled') || newProps.enabled) {
+      this.enabled = true;
+    } else {
+      this.enabled = false;
+    }
+  };
+
   this.render = function($$) {
-    var el = _super.render.apply(this, arguments);
+    var el = _super.render.call(this, $$);
 
     var doc = this.getDocument();
     var containerId = this.props.containerId;
@@ -82,12 +100,10 @@ ContainerEditor.Prototype = function() {
     if (!containerNode) {
       console.warn('No container node found for ', this.props.containerId);
     }
-    var isEditable = this.isEditable();
     el.addClass('sc-container-editor container-node ' + containerId)
       .attr({
         spellCheck: false,
-        "data-id": containerId,
-        "contenteditable": isEditable
+        "data-id": containerId
       });
 
     if (this.isEmpty()) {
@@ -96,13 +112,88 @@ ContainerEditor.Prototype = function() {
       );
     } else {
       // node components
-      each(containerNode.nodes, function(nodeId) {
-        el.append(this._renderNode($$, nodeId));
+      each(containerNode.getNodes(), function(node) {
+        el.append(this._renderNode($$, node));
       }.bind(this));
+    }
+
+    if (this.enabled) {
+      el.attr('contenteditable', true);
+    } else {
+      el.attr('contenteditable', false);
     }
 
     return el;
   };
+
+  this._renderNode = function($$, node) {
+    if (!node) throw new Error('Illegal argument');
+    if (node.isText()) {
+      return _super.renderNode.call(this, $$, node);
+    } else {
+      // TODO: needs more thinking
+      var componentRegistry = this.getComponentRegistry();
+      var ComponentClass = componentRegistry.get(node.type);
+      if (!ComponentClass) {
+        console.error('Could not resolve a component for type: ' + node.type);
+        return $$(IsolatedNodeComponent, { node: node });
+      }
+      if (!ComponentClass.static.isContainerEditor && !ComponentClass.static.isPropertyEditor) {
+        return $$(IsolatedNodeComponent, { node: node });
+      }
+      var props = extend({}, this.props);
+      props.ComponentClass = ComponentClass;
+      // NOTE: surface ids must be hierarchical
+      props.name = [this.name, node.id].join('.');
+      props.node = node;
+      if (ComponentClass.static.isContainerEditor) {
+        props.containerId = node.id;
+      }
+      props.enabled = false;
+      return $$(NestedSurface, props);
+    }
+  };
+
+  this._handleUpOrDownArrowKey = function (event) {
+    event.stopPropagation();
+    var self = this;
+    var direction = (event.keyCode === keys.UP) ? 'left' : 'right';
+
+    var sel = this.getSelection();
+    if (sel.isNodeSelection()) {
+      this.domSelection.collapse(direction);
+    }
+
+    // Note: we need this timeout so that CE updates the DOM selection first
+    // before we try to map it to the model
+    window.setTimeout(function() {
+      if (self._isDisposed()) return;
+      var options = {
+        direction: direction
+      };
+      self._updateModelSelection(options);
+    });
+  };
+
+  this._handleLeftOrRightArrowKey = function (event) {
+    event.stopPropagation();
+    var self = this;
+    var direction = (event.keyCode === keys.LEFT) ? 'left' : 'right';
+
+    var sel = this.getSelection();
+    if (sel.isNodeSelection()) {
+      this.domSelection.collapse(direction);
+    }
+
+    window.setTimeout(function() {
+      if (self._isDisposed()) return;
+      var options = {
+        direction: direction
+      };
+      self._updateModelSelection(options);
+    });
+  };
+
 
   // Used by Clipboard
   this.isContainerEditor = function() {
@@ -164,12 +255,12 @@ ContainerEditor.Prototype = function() {
   this.enable = function() {
     // As opposed to a ContainerEditor, a regular Surface
     // is not a ContentEditable -- but every contained TextProperty
-    this.attr('contentEditable', true);
+    this.attr('contenteditable', true);
     this.enabled = true;
   };
 
   this.disable = function() {
-    this.removeAttr('contentEditable');
+    this.removeAttr('contenteditable');
     this.enabled = false;
   };
 
@@ -289,6 +380,7 @@ ContainerEditor.Prototype = function() {
   };
 
   this.onDocumentChange = function(change) {
+    var doc = this.getDocument();
     // first update the container
     var renderContext = RenderingEngine.createContext(this);
     if (change.isAffected([this.props.containerId, 'nodes'])) {
@@ -297,7 +389,17 @@ ContainerEditor.Prototype = function() {
         if (op.type === "update" && op.path[0] === this.props.containerId) {
           var diff = op.diff;
           if (diff.type === "insert") {
-            var nodeEl = this._renderNode(renderContext.$$, diff.getValue());
+            var nodeId = diff.getValue();
+            var node = doc.get(nodeId);
+            var nodeEl;
+            if (node) {
+              nodeEl = this._renderNode(renderContext.$$, node);
+            } else {
+              // node does not exist anymore
+              // so we insert a stub element, so that the number of child
+              // elements is consistent
+              nodeEl = renderContext.$$('div');
+            }
             this.insertAt(diff.getOffset(), nodeEl);
           } else if (diff.type === "delete") {
             this.removeAt(diff.getOffset());
@@ -308,6 +410,31 @@ ContainerEditor.Prototype = function() {
     // do other stuff such as rerendering text properties
     _super.onDocumentChange.apply(this, arguments);
   };
+
+  this.onMouseDown = function(event) {
+    if (!this.enabled) {
+      console.log('ContainerEditor %s is not enabled. Not reacting on mousedown.');
+      return;
+    }
+    if (this.isEditable()) {
+      this.attr('contenteditable', true);
+    }
+    _super.onMouseDown.call(this, event);
+  };
+
+  this.onNativeBlur = function(event) {
+    this.attr('contenteditable', false);
+    _super.onNativeBlur.call(this, event);
+  };
+
+  this.onNativeFocus = function(event) {
+    var sel = this.getSelection();
+    if (sel && !sel.isNull() && sel.surfaceId === this.name && this.isEditable()) {
+      this.attr('contenteditable', true);
+    }
+    _super.onNativeFocus.call(this, event);
+  };
+
 
   // Create a first text element
   this.onCreateText = function(e) {
@@ -340,8 +467,46 @@ ContainerEditor.Prototype = function() {
     args.editingBehavior = this.editingBehavior;
   };
 
+  this._registerNestedEditor = function(editor) {
+    this._nestedEditors[editor.props.node.id] = editor;
+  };
+
+  this._deregisterNestedEditor = function(editor) {
+    delete this._nestedEditors[editor.props.node.id];
+  };
+
+  // EXPERIMENTAL: trying to set the selection into an invisible element
+  // so that this surface will still receive ContentEditable events
+  this._selectNode = function(nodeId) {
+    var nestedEditor = this._nestedEditors[nodeId];
+    if (!nestedEditor) {
+      console.info('FIXME: selected node is not a nested editor.');
+      return;
+    }
+    var selectedNestedEditor = this._selectedNestedEditor;
+    if (selectedNestedEditor) {
+      if (selectedNestedEditor.__id__ !== nestedEditor.__id__) {
+        selectedNestedEditor._blurEditor(true);
+      }
+    }
+    if (nestedEditor) {
+      this._selectedNestedEditor = nestedEditor;
+      nestedEditor._select();
+      var _selComp = this.refs.selectionHideaway;
+      var wsel = window.getSelection();
+      if (!this._hiddenSelRange) {
+        this._hiddenSelRange = window.document.createRange();
+        this._hiddenSelRange.setStart(_selComp.el, 0);
+      }
+      wsel.removeAllRanges();
+      wsel.addRange(this._hiddenSelRange);
+    }
+  };
+
 };
 
 Surface.extend(ContainerEditor);
+
+ContainerEditor.static.isContainerEditor = true;
 
 module.exports = ContainerEditor;

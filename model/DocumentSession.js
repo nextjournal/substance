@@ -64,12 +64,9 @@ DocumentSession.Prototype = function() {
   };
 
   this.setSelection = function(sel) {
-    this.selection = sel;
-    this.emit('selection:changed', sel, this);
-    // For those who are just interested in selection changes
-    // done via this method -- as opposed to implicit changes
-    // via DocumentChange
-    this.emit('selection:changed:explicitly', sel, this);
+    if(this._setSelection(sel)) {
+      this.emit('selection:changed', sel, this);
+    }
   };
 
   this.getCollaborators = function() {
@@ -183,19 +180,34 @@ DocumentSession.Prototype = function() {
   };
 
   this.onDocumentChange = function(change, info) {
-    // if (info.replay && change.session === this) {
-    //   var selection = change.after.selection;
-    //   if (selection) {
-    //     this.selection = selection;
-    //     this._selectionHasChanged = true;
-    //   }
-    // }
     // ATTENTION: this is used if you have two independent DocumentSessions
     // in one client.
     if (info.session !== this) {
       this.stage._apply(change);
       this._transformLocalChangeHistory(change, info);
       this._transformSelection(change, info);
+    }
+  };
+
+  this.afterDocumentChange = function() {
+    if (this._selectionHasChanged) {
+      // console.log('selection has changed', this.__id__);
+      this._selectionHasChanged = false;
+      this.emit('selection:changed', this.selection, this);
+    }
+  };
+
+  this._setSelection = function(sel) {
+    if (!sel) {
+      sel = Selection.nullSelection;
+    } else {
+      sel.attach(this.doc);
+    }
+    if (!sel.equals(this.selection)) {
+      this.selection = sel;
+      return true;
+    } else {
+      return false;
     }
   };
 
@@ -226,14 +238,6 @@ DocumentSession.Prototype = function() {
       each(collaborators, function(collaborator) {
         DocumentChange.transformSelection(collaborator.selection, change);
       });
-    }
-  };
-
-  this.afterDocumentChange = function() {
-    if (this._selectionHasChanged) {
-      // console.log('selection has changed', this.__id__);
-      this._selectionHasChanged = false;
-      this.emit('selection:changed', this.selection, this);
     }
   };
 

@@ -54,6 +54,38 @@ TextPropertyEditor.Prototype = function() {
     return el;
   };
 
+  this.enable = function() {
+    // As opposed to a ContainerEditor, a regular Surface
+    // is not a ContentEditable -- but every contained TextProperty
+    this.attr('contentEditable', true);
+    this.enabled = true;
+  };
+
+  this.disable = function() {
+    this.removeAttr('contentEditable');
+    this.enabled = false;
+  };
+
+  this.onMouseDown = function(event) {
+    if (this.isEditable()) {
+      this.attr('contentEditable', true);
+    }
+    _super.onMouseDown.call(this, event);
+  };
+
+  this.onNativeBlur = function(event) {
+    this.attr('contentEditable', false);
+    _super.onNativeBlur.call(this, event);
+  };
+
+  this.onNativeFocus = function(event) {
+    var sel = this.getSelection();
+    if (sel && !sel.isNull() && sel.surfaceId === this.name && this.isEditable()) {
+      this.attr('contentEditable', true);
+    }
+    _super.onNativeFocus.call(this, event);
+  };
+
   /**
     Selects all text
   */

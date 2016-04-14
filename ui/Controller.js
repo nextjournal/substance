@@ -123,6 +123,7 @@ Controller.Prototype = function() {
       documentSession: this.documentSession,
       doc: this.doc,
       componentRegistry: this.componentRegistry,
+      surfaceManager: this,
       toolManager: this.toolManager,
       i18n: I18n.instance
     };
@@ -337,7 +338,6 @@ Controller.Prototype = function() {
    * @param surface {ui/Surface} A new surface instance to register
    */
   this.registerSurface = function(surface) {
-    surface.on('selection:changed', this._onSelectionChanged, this);
     surface.on('command:executed', this._onCommandExecuted, this);
     this.surfaces[surface.getName()] = surface;
   };
@@ -430,22 +430,36 @@ Controller.Prototype = function() {
     logger.info('Unsaved changes');
   };
 
-  this.onSelectionChanged = function(sel, surface) {
+  this.onSelectionChanged = function(sel) {
+    console.log('Controller.onSelectionChanged', sel);
     /* jshint unused: false */
     // No-op: Please override in custom controller class
+    var focusedSurface = this.focusedSurface;
+    if (!sel || sel.isNull() && focusedSurface) {
+      console.log('... selection is null. blurring surface %s', focusedSurface.name);
+      this.focusedSurface = null;
+      focusedSurface.blur();
+      return;
+    }
+    if (focusedSurface && focusedSurface.name !== sel.surfaceId) {
+      console.log('... focused surface has changed. blurring surface %s', focusedSurface.name);
+      this.focusedSurface = null;
+      focusedSurface.blur();
+      focusedSurface = null;
+    }
+    if (!focusedSurface) {
+      focusedSurface = this.surfaces[sel.surfaceId];
+      this.focusedSurface = focusedSurface;
+      if (focusedSurface) {
+        console.log('... focusing surface %s', focusedSurface.name);
+        focusedSurface.focus();
+      }
+    }
   };
 
   this.onCommandExecuted = function(info, commandName, cmd) {
     /* jshint unused: false */
     // No-op: Please override in custom controller class
-  };
-
-  this._onSelectionChanged = function(sel, surface) {
-    // HACK: make sure focusedSurface is up to date as soon as
-    // possible because some listeners rely on it.
-    // this.focusedSurface = surface;
-    this.emit('selection:changed', sel, surface);
-    this.onSelectionChanged(sel, surface);
   };
 
   this._onCommandExecuted = function(info, commandName, cmd) {

@@ -61,6 +61,10 @@ TextPropertyComponent.Prototype = function() {
         whiteSpace: 'pre-wrap'
       });
 
+    if (this.props.editable) {
+      el.attr('contentEditable', true);
+    }
+
     el.append($$('br'));
     return el;
   };
@@ -104,11 +108,6 @@ TextPropertyComponent.Prototype = function() {
     }
     el.attr('data-offset', fragment.pos);
     return el;
-  };
-
-  this._finishFragment = function(fragment, context, parentContext) {
-    context.attr('data-length', fragment.length);
-    parentContext.append(context);
   };
 
   this.getPath = function() {
@@ -158,6 +157,11 @@ TextPropertyComponent.Prototype = function() {
 
   this.getDOMCoordinate = function(charPos) {
     return this._getDOMCoordinate(this.el, charPos);
+  };
+
+  this._finishFragment = function(fragment, context, parentContext) {
+    context.attr('data-length', fragment.length);
+    parentContext.append(context);
   };
 
   this._getDOMCoordinate = function(el, charPos) {
