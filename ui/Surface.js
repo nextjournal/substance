@@ -312,7 +312,7 @@ Surface.Prototype = function() {
    * Set the model selection and update the DOM selection accordingly
    */
   this.setSelection = function(sel) {
-    console.log('Surface.setSelection()', this.name, sel);
+    // console.log('Surface.setSelection()', this.name, sel);
     // storing the surface id so that we can associate
     // the selection with this surface later
     if (sel && !sel.isNull()) {
@@ -642,7 +642,7 @@ Surface.Prototype = function() {
   };
 
   this.onNativeFocus = function() {
-    console.log('Native focus on surface', this.name);
+    // console.log('Native focus on surface', this.name);
     var _state = this._internalState;
     _state.hasNativeFocus = true;
     // in some cases we don't react on native focusing
@@ -784,7 +784,7 @@ Surface.Prototype = function() {
     if (Object.keys(updates).length > 0) {
       var selectionFragments = _newState.selectionFragments || {};
       // update text properties and rerender node fragments
-      console.log('Surface %s: updating text properties', this.getName(), Object.keys(updates));
+      // console.log('Surface %s: updating text properties', this.getName(), Object.keys(updates));
       each(updates, function(_, pathStr) {
         var comp = textProperties[pathStr];
         if (comp) {

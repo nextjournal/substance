@@ -86,7 +86,7 @@ TextPropertyComponent.Prototype = function() {
 
       if (node.collaborator) {
         var collaboratorIndex = node.collaborator.colorIndex;
-        el.addClass('sm-collaborator-'+node.collaborator.colorIndex).ref('collaborator-selection'+node);
+        el.addClass('sm-collaborator-'+collaboratorIndex);
       } else {
         el.addClass('sm-local-user');
       }

@@ -7,9 +7,6 @@ var extend = require('lodash/extend');
 var uuid = require('../util/uuid');
 var keys = require('../util/keys');
 var EditingBehavior = require('../model/EditingBehavior');
-var insertText = require('../model/transform/insertText');
-var copySelection = require('../model/transform/copySelection');
-var deleteSelection = require('../model/transform/deleteSelection');
 var breakNode = require('../model/transform/breakNode');
 var insertNode = require('../model/transform/insertNode');
 var switchTextType = require('../model/transform/switchTextType');
@@ -96,7 +93,7 @@ ContainerEditor.Prototype = function() {
     _super.didMount.apply(this, arguments);
     var doc = this.getDocument();
     doc.on('document:changed', this.onDocumentChange, this);
-  }
+  };
 
   this.dispose = function() {
     _super.dispose.apply(this, arguments);
