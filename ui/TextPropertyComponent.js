@@ -30,7 +30,7 @@ function TextPropertyComponent() {
 
 TextPropertyComponent.Prototype = function() {
 
-  var _super = Object.getPrototypeOf(this);
+  var _super = TextPropertyComponent.super.prototype;
 
   this.didMount = function() {
     _super.didMount.call(this);
@@ -85,7 +85,8 @@ TextPropertyComponent.Prototype = function() {
       }
 
       if (node.collaborator) {
-        el.addClass('sm-collaborator-'+node.collaborator.colorIndex);
+        var collaboratorIndex = node.collaborator.colorIndex;
+        el.addClass('sm-collaborator-'+node.collaborator.colorIndex).ref('collaborator-selection'+node);
       } else {
         el.addClass('sm-local-user');
       }

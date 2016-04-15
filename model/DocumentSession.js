@@ -66,8 +66,7 @@ DocumentSession.Prototype = function() {
   this.setSelection = function(sel) {
     var changed = this._setSelection(sel);
     if(changed) {
-      this.emit('update', null, {});
-      this.emit('didUpdate', null, {});
+      this._triggerUpdateEvent();
       this.emit('selection:changed', sel, this);
     }
   };
@@ -96,7 +95,7 @@ DocumentSession.Prototype = function() {
         this.selection = sel;
       }
       this.undoneChanges.push(change.invert());
-      this._notifyChangeListeners(change, { 'replay': true });
+      this._triggerUpdateEvent(change, { 'replay': true });
       if (!oldSel.equals(this.selection)) {
         this.emit('selection:changed', this.selection, this);
       }
@@ -117,7 +116,7 @@ DocumentSession.Prototype = function() {
         this.selection = sel;
       }
       this.doneChanges.push(change.invert());
-      this._notifyChangeListeners(change, { 'replay': true });
+      this._triggerUpdateEvent(change, { 'replay': true });
       if (oldSel !== this.selection) {
         this.emit('selection:changed', this.selection, this);
       }
@@ -185,20 +184,15 @@ DocumentSession.Prototype = function() {
   this.onDocumentChange = function(change, info) {
     // ATTENTION: this is used if you have two independent DocumentSessions
     // in one client.
-    if (info.session !== this) {
+    if (info && info.session !== this) {
       this.stage._apply(change);
       this._transformLocalChangeHistory(change, info);
       this._transformSelection(change, info);
     }
   };
 
-  this.afterDocumentChange = function(change, info) {
-    // Experimental: introducing slots to better control when things get
-    // updated, and things have been rendered/updated
-    this.emit('update', change, info);
-    this.emit('didUpdate', change, info);
-
-    // for legacy
+  this.afterDocumentChange = function() {
+    // DEPRECATED: we want to get rid of the extra selection event here
     if (this._selectionHasChanged) {
       // console.log('selection has changed', this.__id__);
       this._selectionHasChanged = false;
@@ -283,19 +277,23 @@ DocumentSession.Prototype = function() {
     this.undoneChanges = [];
     // console.log('Document._saveTransaction took %s ms', (Date.now() - time));
     // time = Date.now();
-    this._notifyChangeListeners(change, info);
+    this._triggerUpdateEvent(change, info);
   };
 
-  this._notifyChangeListeners = function(change, info) {
+  this._triggerUpdateEvent = function(change, info) {
     info = info || {};
-    // TODO: iron this out... we should have change.sessionId already
     info.session = this;
-    // TODO: I would like to wrap this with a try catch.
-    // however, debugging gets inconvenient as caught exceptions don't trigger a breakpoint
-    // by default, and other libraries such as jquery throw noisily.
-    this.doc._notifyChangeListeners(change, info);
+    if (change) {
+      // TODO: I would like to wrap this with a try catch.
+      // however, debugging gets inconvenient as caught exceptions don't trigger a breakpoint
+      // by default, and other libraries such as jquery throw noisily.
+      this.doc._notifyChangeListeners(change, info);
+    }
+    // Experimental: introducing slots to better control when things get
+    // updated, and things have been rendered/updated
+    this.emit('update', change, info);
+    this.emit('didUpdate', change, info);
   };
-
 };
 
 oo.inherit(DocumentSession, EventEmitter);

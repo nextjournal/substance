@@ -99,10 +99,10 @@ CollabSession.Prototype = function() {
     console.log('CollabClient disconnected');
     this._abortSync();
     if (this._connected) {
-      this._afterDisconnected();  
+      this._afterDisconnected();
     }
   };
-  
+
   /*
     Sets the correct state after a collab session has been disconnected
     either explicitly or triggered by a connection drop out.
@@ -110,6 +110,7 @@ CollabSession.Prototype = function() {
   this._afterDisconnected = function() {
     // We remove all collaborators
     this.collaborators = {};
+    this._triggerUpdateEvent();
     this.emit('collaborators:changed');
     this._connected = false;
     this.emit('disconnected');
@@ -144,7 +145,7 @@ CollabSession.Prototype = function() {
     var error = message.error;
     var errorFn = this[error.name];
     var err = Err.fromJSON(error);
-    
+
     if (!errorFn) {
       console.error('CollabSession: unsupported error', error.name);
       return false;
@@ -289,20 +290,16 @@ CollabSession.Prototype = function() {
     }
 
     // Important: after sync is done we need to reset _pendingChange and _error
-    // In this state we can safely listen to 
+    // In this state we can safely listen to
     this._pendingChange = null;
     this._error = null;
 
     // Each time the sync worked we consider the system connected
     this._connected = true;
 
-    // TODO: this would trigger too many renders potentially
-    // once we have our phases in place we can do this in one go
-    if (serverChange && serverChange.ops.length > 0) {
-      this._notifyChangeListeners(serverChange, { replay: false, remote: true });  
-    }
+    this._triggerUpdateEvent(serverChange, { replay: false, remote: true });
     if (collaboratorsChanged) {
-      this.emit('collaborators:changed');  
+      this.emit('collaborators:changed');
     }
     this.emit('connected');
 
@@ -477,11 +474,10 @@ CollabSession.Prototype = function() {
         this.version = serverVersion;
       }
       var collaboratorsChanged = this._updateCollaborators(collaborators);
-      if (serverChange) {
-        this._notifyChangeListeners(serverChange, { replay: false, remote: true });  
-      }
+
+      this._triggerUpdateEvent(serverChange, { replay: false, remote: true })
       if (collaboratorsChanged) {
-        this.emit('collaborators:changed');  
+        this.emit('collaborators:changed');
       }
     } else {
       console.log('skipped remote update. Pending sync or local changes.');

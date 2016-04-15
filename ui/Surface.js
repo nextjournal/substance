@@ -771,31 +771,36 @@ Surface.Prototype = function() {
       hasNativeFocus: _oldState.hasNativeFocus,
     };
     var updates = _updateSelectionFragments(this, this.getDocument(), _oldState, _newState);
+    var textProperties = this._textProperties;
     if (change) {
       change.updated.forEach(function(_, path) {
-        updates[path] = true;
+        if (textProperties[path]) {
+          updates[path] = true;
+        }
       });
     }
     this._internalState = _newState;
 
-    var selectionFragments = _newState.selectionFragments || {};
-    var textProperties = this._textProperties;
-    // update text properties and rerender node fragments
-    each(updates, function(_, pathStr) {
-      var comp = textProperties[pathStr];
-      if (comp) {
-        var props = {
-          fragments: selectionFragments[pathStr]
-        };
-        comp.extendProps(props);
-      }
-    });
+    if (Object.keys(updates).length > 0) {
+      var selectionFragments = _newState.selectionFragments || {};
+      // update text properties and rerender node fragments
+      console.log('Surface %s: updating text properties', this.getName(), Object.keys(updates));
+      each(updates, function(_, pathStr) {
+        var comp = textProperties[pathStr];
+        if (comp) {
+          var props = {
+            fragments: selectionFragments[pathStr]
+          };
+          comp.extendProps(props);
+        }
+      });
+    }
   };
 
   this._updateModelSelection = function(options) {
     var sel = this.domSelection.getSelection(options);
     // NOTE: this will also lead to a rerendering of the selection
-    // triggered by the 'selection:changed' event
+    // via session.on('update')
     this.setSelection(sel);
   };
 
@@ -971,7 +976,10 @@ Surface.Prototype = function() {
     var collaborators = _newState.collaborators;
     if (collaborators) {
       each(collaborators, function(collaborator) {
-        _computeSelectionFragments(doc, collaborator.selection, newSelectionFragments, collaborator);
+        var sel = collaborator.selection;
+        if (sel.surfaceId === surface.name) {
+          _computeSelectionFragments(doc, sel, newSelectionFragments, collaborator);
+        }
       });
     }
 

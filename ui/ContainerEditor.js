@@ -54,11 +54,9 @@ var NestedSurface = require('./NestedSurface');
 function ContainerEditor() {
   Surface.apply(this, arguments);
 
-  this.willReceiveProps(this.props);
-
   this.containerId = this.props.containerId;
-  if (!isString(this.props.containerId)) {
-    throw new Error("Illegal argument: Expecting containerId.");
+  if (!isString(this.containerId)) {
+    throw new Error("Property 'containerId' is mandatory.");
   }
   var doc = this.getDocument();
   this.container = doc.get(this.containerId);
@@ -68,6 +66,9 @@ function ContainerEditor() {
   this.editingBehavior = new EditingBehavior();
 
   this._nestedEditors = {};
+
+  // derive internal state variables
+  this.willReceiveProps(this.props);
 }
 
 ContainerEditor.Prototype = function() {
@@ -89,6 +90,18 @@ ContainerEditor.Prototype = function() {
     } else {
       this.enabled = false;
     }
+  };
+
+  this.didMount = function() {
+    _super.didMount.apply(this, arguments);
+    var doc = this.getDocument();
+    doc.on('document:changed', this.onDocumentChange, this);
+  }
+
+  this.dispose = function() {
+    _super.dispose.apply(this, arguments);
+    var doc = this.getDocument();
+    doc.off(this);
   };
 
   this.render = function($$) {
@@ -266,19 +279,11 @@ ContainerEditor.Prototype = function() {
 
   /* Editing behavior */
 
-  /**
-    Performs a {@link model/transform/deleteSelection} transformation
-  */
-  this.delete = function(tx, args) {
-    this._prepareArgs(args);
-    return deleteSelection(tx, args);
-  };
 
   /**
     Performs a {@link model/transform/breakNode} transformation
   */
   this.break = function(tx, args) {
-    this._prepareArgs(args);
     if (args.selection.isPropertySelection() || args.selection.isContainerSelection()) {
       return breakNode(tx, args);
     }
@@ -288,7 +293,6 @@ ContainerEditor.Prototype = function() {
     Performs an {@link model/transform/insertNode} transformation
   */
   this.insertNode = function(tx, args) {
-    this._prepareArgs(args);
     if (args.selection.isPropertySelection() || args.selection.isContainerSelection()) {
       return insertNode(tx, args);
     }
@@ -298,7 +302,6 @@ ContainerEditor.Prototype = function() {
    * Performs a {@link model/transform/switchTextType} transformation
    */
   this.switchType = function(tx, args) {
-    this._prepareArgs(args);
     if (args.selection.isPropertySelection()) {
       return switchTextType(tx, args);
     }
@@ -347,36 +350,9 @@ ContainerEditor.Prototype = function() {
     Performs a {@link model/transform/paste} transformation
   */
   this.paste = function(tx, args) {
-    this._prepareArgs(args);
     if (args.selection.isPropertySelection() || args.selection.isContainerSelection()) {
       return paste(tx, args);
     }
-  };
-
-  /**
-    Performs an {@link model/transform/insertText} transformation
-  */
-  this.insertText = function(tx, args) {
-    if (args.selection.isPropertySelection() || args.selection.isContainerSelection()) {
-      return insertText(tx, args);
-    }
-  };
-
-  /**
-    Inserts a soft break
-  */
-  this.softBreak = function(tx, args) {
-    args.text = "\n";
-    return this.insertText(tx, args);
-  };
-
-  /**
-    Copy the current selection. Performs a {@link model/transform/copySelection}
-    transformation.
-  */
-  this.copy = function(doc, selection) {
-    var result = copySelection(doc, { selection: selection });
-    return result.doc;
   };
 
   this.onDocumentChange = function(change) {
@@ -407,8 +383,6 @@ ContainerEditor.Prototype = function() {
         }
       }
     }
-    // do other stuff such as rerendering text properties
-    _super.onDocumentChange.apply(this, arguments);
   };
 
   this.onMouseDown = function(event) {
