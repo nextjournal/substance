@@ -49,7 +49,7 @@ DOMSelection.Prototype = function() {
   this.setSelection = function(sel) {
     // console.log('### renderSelection', sel.toString());
     var wSel = window.getSelection();
-    if (sel.isNull() || sel.isTableSelection()) {
+    if (sel.isNull()) {
       this.clear();
       return;
     }
