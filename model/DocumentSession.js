@@ -64,7 +64,10 @@ DocumentSession.Prototype = function() {
   };
 
   this.setSelection = function(sel) {
-    if(this._setSelection(sel)) {
+    var changed = this._setSelection(sel);
+    if(changed) {
+      this.emit('update', null, {});
+      this.emit('didUpdate', null, {});
       this.emit('selection:changed', sel, this);
     }
   };
@@ -189,7 +192,13 @@ DocumentSession.Prototype = function() {
     }
   };
 
-  this.afterDocumentChange = function() {
+  this.afterDocumentChange = function(change, info) {
+    // Experimental: introducing slots to better control when things get
+    // updated, and things have been rendered/updated
+    this.emit('update', change, info);
+    this.emit('didUpdate', change, info);
+
+    // for legacy
     if (this._selectionHasChanged) {
       // console.log('selection has changed', this.__id__);
       this._selectionHasChanged = false;
