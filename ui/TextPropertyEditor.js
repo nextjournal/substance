@@ -29,10 +29,14 @@ var TextProperty = require('./TextPropertyComponent');
 */
 
 function TextPropertyEditor(parent, props) {
-  if (!props.name) {
-    props.name = props.path.join('.');
-  }
+  // prop 'name' is optional
+  props.name = props.name || props.path.join('.');
+
   Surface.apply(this, arguments);
+
+  if (!props.path) {
+    throw new Error("Property 'path' is mandatory.");
+  }
 }
 
 TextPropertyEditor.Prototype = function() {

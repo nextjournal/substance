@@ -28,18 +28,18 @@ var DefaultDOMElement = require('./DefaultDOMElement');
 function Surface() {
   Surface.super.apply(this, arguments);
 
-  this.controller = this.context.controller || this.props.controller;
-  if (!this.controller) {
-    throw new Error('Surface needs a valid controller');
+  // DocumentSession instance must be provided either as a prop
+  // or via dependency-injection
+  this.documentSession = this.props.documentSession || this.context.documentSession;
+  if (!this.documentSession) {
+    throw new Error('No DocumentSession provided');
   }
-  this.documentSession = this.controller.getDocumentSession();
   this.name = this.props.name;
   if (!this.name) {
-    throw new Error('No id provided');
+    throw new Error('Surface must have a name.');
   }
 
   this.clipboard = new Clipboard(this);
-  var doc = this.documentSession.getDocument();
 
   this.domSelection = null;
 
@@ -58,19 +58,29 @@ function Surface() {
   this.enabled = true;
   this.undoEnabled = true;
   this.textTypes = this.props.textTypes;
-  this._initializeCommandRegistry(this.props.commands);
-
-  // true if the document session's selection is addressing this surface
-  this.hasNativeFocus = false;
+  this.commandRegistry = _createCommandRegistry(this, this.props.commands);
 
   // a registry for TextProperties which allows us to dispatch changes
   this._textProperties = {};
-  this._selectionFragments = null;
-  this._cursorFragment = null;
-  this._annotations = {};
 
-  doc.on('document:changed', this.onDocumentChange, this);
-  this.documentSession.on('collaborators:changed', this.onCollaboratorsChange, this);
+  this._internalState = {
+    selection: null,
+    selectionFragments: null,
+    cursorFragment: null,
+    // true if the document session's selection is addressing this surface
+    hasNativeFocus: false,
+    skipNextFocusEvent: false,
+  };
+}
+
+function _createCommandRegistry(surface, commands) {
+  var commandRegistry = new Registry();
+  each(commands, function(CommandClass) {
+    var commandContext = extend({}, surface.context, surface.getChildContext());
+    var cmd = new CommandClass(commandContext);
+    commandRegistry.add(CommandClass.static.name, cmd);
+  });
+  return commandRegistry;
 }
 
 Surface.Prototype = function() {
@@ -135,9 +145,13 @@ Surface.Prototype = function() {
   };
 
   this.didMount = function() {
+    this.documentSession.on('update', this.onSessionUpdate, this);
+    this.documentSession.on('didUpdate', this.onSessionDidUpdate, this);
+
     if (this.context.surfaceManager) {
       this.context.surfaceManager.registerSurface(this);
     }
+
     if (!this.isReadonly()) {
       this.domSelection = this._createDOMSelection();
       this.clipboard.didMount();
@@ -146,14 +160,13 @@ Surface.Prototype = function() {
       var sel = this.getSelection();
       if (sel.surfaceId === this.name) {
         this.el.focus();
-        this._rerenderSelection();
+        this._updateTextProperties();
       }
     }
   };
 
   this.dispose = function() {
-    var doc = this.getDocument();
-    doc.off(this);
+    this.documentSession.off(this);
     this.domSelection = null;
     this.domObserver.disconnect();
     if (this.context.surfaceManager) {
@@ -210,7 +223,7 @@ Surface.Prototype = function() {
   };
 
   this.getController = function() {
-    return this.controller;
+    return this.context.controller;
   };
 
   this.getDocument = function() {
@@ -306,28 +319,28 @@ Surface.Prototype = function() {
       sel.surfaceId = this.name;
     }
     this._setSelection(sel);
-    // this.emit('selection:changed', sel, this);
   };
 
   this.blur = function() {
-    if (this.hasNativeFocus) {
+    if (this._internalState.hasNativeFocus) {
       this.el.blur();
     } else {
-      this._rerenderSelection();
+      this._updateTextProperties();
     }
     this.emit('surface:blurred', this);
   };
 
   this.focus = function() {
-    if (!this.hasNativeFocus) {
+    if (!this._internalState.hasNativeFocus) {
       this.el.focus();
     }
+    this._updateTextProperties();
     this.emit('surface:focused', this);
   };
 
   this.setSelectionFromEvent = function(evt) {
     if (this.domSelection) {
-      this.skipNextFocusEvent = true;
+      this._internalState.skipNextFocusEvent = true;
       var domRange = Surface.getDOMRangeFromEvent(evt);
       var range = this.domSelection.getSelectionFromDOMRange(domRange);
       var sel = this.getDocument().createSelection(range);
@@ -422,39 +435,6 @@ Surface.Prototype = function() {
   };
 
   /* Event handlers */
-
-  this.onDocumentChange = function(change, info) {
-    // dirty text properties which need to be updated due to selection changes
-    var updates = this._updateSelectionFragments();
-    // plus all text properties affected by the change
-    change.updated.forEach(function(_, path) {
-      updates[path] = true;
-    });
-    // update text properties and rerender node fragments
-    this._updateTextProperties(updates);
-
-    var sel = this.getSelection();
-
-    // rerender the DOM selection
-    if (this.domSelection && !info.remote) {
-      // console.log('Rerendering DOM selection after document change.', this.__id__);
-      // HACK: under FF we must make sure that the contenteditable is
-      // focused.
-      if (change.after.surfaceId === this.getName()) {
-        if (!this.hasNativeFocus) {
-          this.skipNextFocusEvent = true;
-          this.el.focus();
-        }
-        this.rerenderDomSelection();
-      }
-    }
-
-    this.emit('selection:changed', sel, this);
-  };
-
-  this.onCollaboratorsChange = function() {
-    this._rerenderSelection();
-  };
 
   /*
    * Handle document key down events.
@@ -650,38 +630,52 @@ Surface.Prototype = function() {
 
   this.onNativeBlur = function() {
     console.log('Native blur on surface', this.name);
-    this.hasNativeFocus = false;
-    if (this.skipNextFocusEvent) {
-      this.skipNextFocusEvent = false;
+    var _state = this._internalState;
+    _state.hasNativeFocus = false;
+    if (_state.skipNextFocusEvent) {
+      _state.skipNextFocusEvent = false;
       return;
     }
-    this._rerenderSelection();
+    // native blur does not lead to a session update,
+    // thus we need to update the selection manually
+    this._updateTextProperties();
   };
 
   this.onNativeFocus = function() {
     console.log('Native focus on surface', this.name);
-    this.hasNativeFocus = true;
+    var _state = this._internalState;
+    _state.hasNativeFocus = true;
     // in some cases we don't react on native focusing
     // e.g., when the selection is done via mouse
     // or if the selection is set implicitly
-    if (this.skipNextFocusEvent) {
-      this.skipNextFocusEvent = false;
+    if (_state.skipNextFocusEvent) {
+      _state.skipNextFocusEvent = false;
       return;
     }
-    this._rerenderSelection();
+    // native blur does not lead to a session update,
+    // thus we need to update the selection manually
+    this._updateTextProperties();
+  };
+
+  this.onSessionUpdate = function(change) {
+    this._updateTextProperties(change);
+  };
+
+  this.onSessionDidUpdate = function() {
+    // console.log('Rerendering DOM selection after document change.', this.__id__);
+    var sel = this.getSelection();
+    if (sel.surfaceId === this.getName()) {
+    // HACK: under FF we must make sure that the contenteditable is
+    // focused.
+      if (!this._internalState.hasNativeFocus) {
+        this.skipNextFocusEvent = true;
+        this.el.focus();
+      }
+      this.rerenderDomSelection();
+    }
   };
 
   // Internal implementations
-
-  this._initializeCommandRegistry = function(commands) {
-    var commandRegistry = new Registry();
-    each(commands, function(CommandClass) {
-      var commandContext = extend({}, this.context, this.getChildContext());
-      var cmd = new CommandClass(commandContext);
-      commandRegistry.add(CommandClass.static.name, cmd);
-    }.bind(this));
-    this.commandRegistry = commandRegistry;
-  };
 
   this._handleLeftOrRightArrowKey = function (event) {
     event.stopPropagation();
@@ -694,13 +688,6 @@ Surface.Prototype = function() {
         direction: (event.keyCode === keys.LEFT) ? 'left' : 'right'
       };
       self._updateModelSelection(options);
-      // We could rerender the selection, to make sure the DOM is representing
-      // the model selection
-      // TODO: ATM, the DOMSelection is not good enough in doing this, event.g., there
-      // are situations where one can not use left/right navigation anymore, as
-      // DOMSelection will always decides to choose the initial positition,
-      // which means lockin.
-      // self.rerenderDomSelection();
     });
   };
 
@@ -759,7 +746,7 @@ Surface.Prototype = function() {
   };
 
   this._setSelection = function(sel) {
-    var hasChanged = this.documentSession._setSelection(sel);
+    var _state = this._internalState;
     // Since we allow the surface be blurred natively when clicking
     // on tools we now need to make sure that the element is focused natively
     // when we set the selection
@@ -767,28 +754,42 @@ Surface.Prototype = function() {
     // when a new DOM selection is set.
     // ATTENTION: in FF 44 this was causing troubles, making the CE unselectable
     // until the next native blur.
-    if (!sel.isNull() && this.el && !this.hasNativeFocus) {
-      this.skipNextFocusEvent = true;
+    if (!sel.isNull() && this.el && !_state.hasNativeFocus) {
+      _state.skipNextFocusEvent = true;
       this.el.focus();
     }
-    if (this.domSelection) {
-      this.domSelection.setSelection(sel);
-    }
-    if (hasChanged) {
-      this._skipNextSelectionChange = true;
-      this.documentSession.emit('selection:changed', sel, this.documentSession);
-    }
+    this.documentSession.setSelection(sel);
   };
 
-  this._rerenderSelection = function() {
-    var updates = this._updateSelectionFragments();
-    // re-render text properties and node fragments
-    this._updateTextProperties(updates);
-    // as the re-render before might have destroyed
-    // an existing DOM selection, it needs to be rerendered, too
-    if (this.domSelection && this.hasNativeFocus) {
-      this.rerenderDomSelection();
+  this._updateTextProperties = function(change) {
+    // derive props for text property components from current state
+    var _oldState = this._internalState;
+    var _newState = {
+      selection: this.getSelection(),
+      selectionFragments: null,
+      collaborators: this.getDocumentSession().getCollaborators(),
+      hasNativeFocus: _oldState.hasNativeFocus,
+    };
+    var updates = _updateSelectionFragments(this, this.getDocument(), _oldState, _newState);
+    if (change) {
+      change.updated.forEach(function(_, path) {
+        updates[path] = true;
+      });
     }
+    this._internalState = _newState;
+
+    var selectionFragments = _newState.selectionFragments || {};
+    var textProperties = this._textProperties;
+    // update text properties and rerender node fragments
+    each(updates, function(_, pathStr) {
+      var comp = textProperties[pathStr];
+      if (comp) {
+        var props = {
+          fragments: selectionFragments[pathStr]
+        };
+        comp.extendProps(props);
+      }
+    });
   };
 
   this._updateModelSelection = function(options) {
@@ -906,23 +907,10 @@ Surface.Prototype = function() {
     return this._textProperties[path];
   };
 
-  this._getFragments = function(path) {
-    /* jshint unused:false */
-    var frags = [];
-    if (this._selectionFragments) {
-      var selectionFragments = this._selectionFragments[path];
-      if (selectionFragments) {
-        frags = frags.concat(selectionFragments);
-      }
-    }
-    return frags;
-  };
-
-  this._computeSelectionFragments = function(sel, selectionFragments, collaborator) {
+  function _computeSelectionFragments(doc, sel, selectionFragments, collaborator) {
     selectionFragments = selectionFragments || {};
     if (sel && !sel.isNull()) {
       // console.log('Computing selection fragments for', sel.toString());
-      var doc = this.getDocument();
       var fragments = sel.getFragments();
       fragments.forEach(function(frag) {
         var key;
@@ -952,46 +940,43 @@ Surface.Prototype = function() {
       });
     }
     return selectionFragments;
-  };
+  }
 
-  this._updateSelectionFragments = function() {
+  function _updateSelectionFragments(surface, doc, _oldState, _newState) {
     var updates = {};
-    var oldSelectionFragments = this._selectionFragments;
+    var oldSelectionFragments = _oldState.selectionFragments;
     var newSelectionFragments = {};
     // local selection
-    var sel = this.getSelection();
+    var sel = _newState.selection;
 
-    if (sel.surfaceId === this.name) {
+    if (sel.surfaceId === surface.name) {
       // Note: we don't render a cursor when this is focused
       // as otherwise we would interfer to much with ContentEditable.
       // Such as double-click makes troubles in FF.
-      if (!this.hasNativeFocus && sel.isCollapsed()) {
+      if (!_newState.hasNativeFocus && sel.isCollapsed()) {
         var path = sel.startPath;
         var offset = sel.startOffset;
         var key = path.toString();
-        this._cursorFragment = new Selection.Cursor(path, offset);
+        _newState.cursorFragment = new Selection.Cursor(path, offset);
         if (!newSelectionFragments[key]) {
           newSelectionFragments[key] = [];
         }
-        newSelectionFragments[key].push(this._cursorFragment);
+        newSelectionFragments[key].push(_newState.cursorFragment);
       } else if (!sel.isCollapsed()) {
-        this._cursorFragment = null;
-        this._computeSelectionFragments(sel, newSelectionFragments);
+        _computeSelectionFragments(doc, sel, newSelectionFragments);
       }
     }
     // if this.documentSession is a CollabSession there might
     // be other collaborators, for which we want to show the selection too
-    var collaborators = this.getDocumentSession().getCollaborators();
+    var collaborators = _newState.collaborators;
     if (collaborators) {
       each(collaborators, function(collaborator) {
-        this._computeSelectionFragments(collaborator.selection, newSelectionFragments, collaborator);
-      }.bind(this));
+        _computeSelectionFragments(doc, collaborator.selection, newSelectionFragments, collaborator);
+      });
     }
 
     if (Object.keys(newSelectionFragments).length > 0) {
-      this._selectionFragments = newSelectionFragments;
-    } else {
-      this._selectionFragments = null;
+      _newState.selectionFragments = newSelectionFragments;
     }
 
     // properties which displayed the selection previously
@@ -1003,16 +988,7 @@ Surface.Prototype = function() {
       updates[key] = true;
     });
     return updates;
-  };
-
-  this._updateTextProperties = function(updatedTextProperties) {
-    each(updatedTextProperties, function(_, pathStr) {
-      var comp = this._textProperties[pathStr];
-      if (comp) {
-        comp.rerender();
-      }
-    }.bind(this));
-  };
+  }
 
   this._createDOMSelection = function() {
     return new DOMSelection(this);
