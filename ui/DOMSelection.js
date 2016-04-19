@@ -151,6 +151,17 @@ DOMSelection.Prototype = function() {
     window.getSelection().removeAllRanges();
   };
 
+  this.collapse = function(dir) {
+    var wSel = window.getSelection();
+    var wRange;
+    if (wSel.rangeCount > 0) {
+      wRange = wSel.getRangeAt(0);
+      wRange.collapse(dir === 'left');
+      wSel.removeAllRanges();
+      wSel.addRange(wRange);
+    }
+  };
+
   this.getContainerId = function() {
     if (this.surface.isContainerEditor()) {
       return this.surface.getContainerId();

@@ -4,7 +4,6 @@ var extend = require('lodash/extend');
 var DocumentNode = require('./DocumentNode');
 var ParentNodeMixin = require('./ParentNodeMixin');
 var ContainerAddress = require('./ContainerAddress');
-var Coordinate = require('./Coordinate');
 
 /**
   A Container represents a list of nodes.
@@ -83,7 +82,7 @@ Container.Prototype = function() {
   };
 
   this.getAddress = function(coor) {
-    if (! (coor instanceof Coordinate)) {
+    if (!coor._isCoordinate) {
       // we have broken with an earlier version of this API
       throw new Error('Illegal argument: Container.getAddress(coor) expects a Coordinate instance.');
     }

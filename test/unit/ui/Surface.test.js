@@ -5,7 +5,6 @@ require('../qunit_extensions');
 var createAnnotation = require('../../../model/transform/createAnnotation');
 var DocumentSession = require('../../../model/DocumentSession');
 var Component = require('../../../ui/Component');
-var BrowserDOMElement = require('../../../ui/BrowserDOMElement');
 
 var TestContainerEditor = require('./TestContainerEditor');
 var simple = require('../../fixtures/simple');
@@ -53,6 +52,7 @@ QUnit.uiTest("Set the selection after creating annotation.", function(assert) {
 });
 
 QUnit.uiTest("Render a reverse selection.", function(assert) {
+  var BrowserDOMElement = require('../../../ui/BrowserDOMElement');
   var el = this.sandbox;
   var doc = simple();
   var surface = _createSurface(doc, el);
