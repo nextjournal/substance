@@ -142,6 +142,9 @@ ContainerEditor.Prototype = function() {
       return _super.renderNode.call(this, $$, node);
     } else {
       // TODO: needs more thinking
+      // We should not implicitly wrap things into IsolatedNodeComponents
+      // Instead the component registered for the type should
+      // implement an IsolatedNodeComponent interface
       var componentRegistry = this.getComponentRegistry();
       var ComponentClass = componentRegistry.get(node.type);
       if (!ComponentClass) {

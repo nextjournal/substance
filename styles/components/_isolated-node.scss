@@ -2,40 +2,30 @@
 
   position: relative;
 
-  & > .se-overlay {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    z-index: 1;
+  > .se-isolated-node-boundary {
+    display: block;
+    opacity: 0;
+/*
+    -moz-user-select: none;
+    -khtml-user-select: none;
+    -webkit-user-select: none;
+    -o-user-select: none;
+*/
   }
 
-
   &.sm-focused {
-
-    outline: 2px dashed;
-    outline-color: $local-selection-color;
-
-    & > .se-overlay {
-      display: none;
+    > .se-container {
+      outline: 2px dashed;
+      outline-color: $local-selection-color;
     }
   }
 
   &.sm-selected {
-
-    outline: 2px solid;
-    outline-color: $local-selection-color;
-
-    & > .se-overlay {
-      // local selection color
-      background-color: $local-selection-color;
-      opacity: 0.3;
-      -moz-user-select: none;
-      -khtml-user-select: none;
-      -webkit-user-select: none;
-      -o-user-select: none;
+    > .se-container {
+      outline: 2px solid;
+      outline-color: $local-selection-color;
+      background: rgba(163,205,253, 0.6);
     }
-
   }
+
 }

@@ -2,7 +2,7 @@
 
 var each = require('lodash/each');
 var extend = require('lodash/extend');
-var Component = require('./Component');
+var IsolatedNodeComponent = require('./IsolatedNodeComponent');
 
 function NestedSurface() {
   NestedSurface.super.apply(this, arguments);
@@ -14,6 +14,8 @@ function NestedSurface() {
 
 NestedSurface.Prototype = function() {
 
+  var _super = NestedSurface.super.prototype;
+
   this.getChildContext = function() {
     return {
       // acting as a proxy to the injected surfaceManager
@@ -23,6 +25,8 @@ NestedSurface.Prototype = function() {
   };
 
   this.didMount = function() {
+    _super.didMount.call(this);
+
     this.context.documentSession.on('selection:changed', this.onSelectionChange, this);
     this.context.surface._registerNestedEditor(this);
     if (this.context._parentEditor) {
@@ -31,6 +35,8 @@ NestedSurface.Prototype = function() {
   };
 
   this.dispose = function() {
+    _super.dispose.call(this);
+
     this.refs.editor.off(this);
     this.context.documentSession.off(this);
     this.context.surface._deregisterNestedEditor(this);
@@ -40,40 +46,19 @@ NestedSurface.Prototype = function() {
   };
 
   this.render = function($$) {
+    /* jshint unused: false */
+    var el = _super.render.apply(this, arguments);
+    el.addClass('sc-nested-surface');
+    return el;
+  };
+
+  this.renderContent = function($$) {
     var ComponentClass = this.props.ComponentClass;
-
-    var el = $$('div').addClass('sc-nested-surface');
-    el.attr('data-id', this.props.node.id);
-    // el.attr('contentEditable', false);
-    if (this.mode) {
-      el.addClass('sm-' + this.mode);
-    }
-    el.on('mousedown', this.onMousedown);
-
-    el.append(
-      $$('div').addClass('se-nested-editor-boundary').addClass('sm-before').ref('before')
-        // .attr('contenteditable', false)
-        .append('[')
-      );
-
-    var container = $$('div').addClass('se-container');
-    container.attr('contenteditable', false);
-
     var editorProps = extend({}, this.props);
     if (!this.mode) {
       editorProps.enabled = false;
     }
-    var editor = $$(ComponentClass, editorProps).ref('editor');
-    container.append(editor);
-    el.append(container);
-
-    el.append(
-      $$('div').addClass('se-nested-editor-boundary').addClass('sm-after').ref('after')
-      // .attr('contenteditable', false)
-      .append(']')
-    );
-
-    return el;
+    return $$(ComponentClass, editorProps).ref('editor');
   };
 
   // TODO: Doing this implicitly is strange.
@@ -90,20 +75,10 @@ NestedSurface.Prototype = function() {
          sel.containsNode(this.props.node.id) &&
          !this.mode) {
         console.log('NestedSurface: enabling selection', this.props.node.id);
-        return this._select();
+        return this._setSelected();
       } else {
         this._blurEditor();
       }
-    }
-  };
-
-  this.onMousedown = function(event) {
-    console.log('NestedSurface %s: mousedown', this.props.node.id);
-    if (!this.mode) {
-      console.log('NestedSurface %s: selecting node', this.props.node.id);
-      event.preventDefault();
-      event.stopPropagation();
-      this._selectNode();
     }
   };
 
@@ -119,24 +94,8 @@ NestedSurface.Prototype = function() {
     this._blurEditor(true, true);
   };
 
-  this._selectNode = function() {
-    var surface = this.context.surface;
-    var doc = surface.getDocument();
-    var node = this.props.node;
-    surface.setSelection(doc.createSelection({
-      type: 'container',
-      containerId: surface.getContainerId(),
-      startPath: [node.id],
-      startOffset: 0,
-      endPath: [node.id],
-      endOffset: 1
-    }));
-    this._select();
-  };
-
-  this._select = function() {
-    this.mode = 'selected';
-    this.removeClass('sm-focused').addClass('sm-selected');
+  this._setSelected = function() {
+    _super._setSelected.apply(this, arguments);
     this.refs.editor.enable();
   };
 
@@ -193,26 +152,8 @@ NestedSurface.Prototype = function() {
     delete this._nestedEditors[editor.__id__];
   };
 
-  this._getCoor = function(which) {
-    var el, offset;
-    if (which === 'before') {
-      el = this.el;
-      offset = 0;
-    } else {
-      el = this.el;
-      offset = 3;
-    }
-    return {
-      container: el,
-      offset: offset
-    };
-
-  };
-
 };
 
-Component.extend(NestedSurface);
-
-NestedSurface.static.isIsolatedNodeComponent = true;
+IsolatedNodeComponent.extend(NestedSurface);
 
 module.exports = NestedSurface;
