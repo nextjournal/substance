@@ -705,4 +705,35 @@ BrowserDOMElement.getBrowserWindow = function() {
   return new BrowserWindow(window);
 };
 
+var _r1, _r2;
+
+BrowserDOMElement.isReverse = function(anchorNode, anchorOffset, focusNode, focusOffset) {
+  // the selection is reversed when the focus propertyEl is before
+  // the anchor el or the computed charPos is in reverse order
+  if (focusNode && anchorNode) {
+    if (!_r1) {
+      _r1 = window.document.createRange();
+      _r2 = window.document.createRange();
+    }
+    _r1.setStart(anchorNode.getNativeElement(), anchorOffset);
+    _r2.setStart(focusNode.getNativeElement(), focusOffset);
+    var cmp = _r1.compareBoundaryPoints(window.Range.START_TO_START, _r2);
+    if (cmp === 1) {
+      return true;
+    }
+  }
+  return false;
+};
+
+BrowserDOMElement.getWindowSelection = function() {
+  var nativeSel = window.getSelection();
+  var result = {
+    anchorNode: BrowserDOMElement.wrapNativeElement(nativeSel.anchorNode),
+    anchorOffset: nativeSel.anchorOffset,
+    focusNode: BrowserDOMElement.wrapNativeElement(nativeSel.focusNode),
+    focusOffset: nativeSel.focusOffset
+  };
+  return result;
+};
+
 module.exports = BrowserDOMElement;

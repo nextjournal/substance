@@ -176,7 +176,7 @@ DOMSelection.Prototype = function() {
     } else {
       end = this._getCoordinate(focusNode, focusOffset);
     }
-    var isReverse = _isReverse(anchorNode, anchorOffset, focusNode, focusOffset);
+    var isReverse = DefaultDOMElement.isReverse(anchorNode, anchorOffset, focusNode, focusOffset);
     if (start && end) {
       return _createRange(start, end, isReverse, this.getContainerId());
     } else {
@@ -337,26 +337,6 @@ DOMSelection.Prototype = function() {
       }
     }
   };
-
-  var _r1, _r2;
-
-  function _isReverse(anchorNode, anchorOffset, focusNode, focusOffset) {
-    // the selection is reversed when the focus propertyEl is before
-    // the anchor el or the computed charPos is in reverse order
-    if (focusNode && anchorNode) {
-      if (!_r1) {
-        _r1 = window.document.createRange();
-        _r2 = window.document.createRange();
-      }
-      _r1.setStart(anchorNode.getNativeElement(), anchorOffset);
-      _r2.setStart(focusNode.getNativeElement(), focusOffset);
-      var cmp = _r1.compareBoundaryPoints(window.Range.START_TO_START, _r2);
-      if (cmp === 1) {
-        return true;
-      }
-    }
-    return false;
-  }
 
   function _getPath(el) {
     if (!el._isDOMElement) {
