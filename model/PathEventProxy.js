@@ -31,7 +31,7 @@ PathEventProxy.Prototype = function() {
 
   this.disconnect = function(listener) {
     console.warn('DEPRECATED: use proxy.off(this) instead');
-    this._removeAll(listener);
+    this.off(listener);
   };
 
   this.onDocumentChanged = function(change, info, doc) {

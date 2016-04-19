@@ -141,7 +141,7 @@ Surface.Prototype = function() {
     return $$(ComponentClass, {
       doc: doc,
       node: node
-    });
+    }).ref(node.id);
   };
 
   this.didMount = function() {
@@ -325,7 +325,7 @@ Surface.Prototype = function() {
     if (this._internalState.hasNativeFocus) {
       this.el.blur();
     } else {
-      this._updateTextProperties();
+      this._update(null, 'local');
     }
     this.emit('surface:blurred', this);
   };
@@ -334,7 +334,7 @@ Surface.Prototype = function() {
     if (!this._internalState.hasNativeFocus) {
       this.el.focus();
     }
-    this._updateTextProperties();
+    this._update(null, 'local');
     this.emit('surface:focused', this);
   };
 
@@ -638,7 +638,7 @@ Surface.Prototype = function() {
     }
     // native blur does not lead to a session update,
     // thus we need to update the selection manually
-    this._updateTextProperties();
+    // this._update(null, 'local');
   };
 
   this.onNativeFocus = function() {
@@ -654,11 +654,11 @@ Surface.Prototype = function() {
     }
     // native blur does not lead to a session update,
     // thus we need to update the selection manually
-    this._updateTextProperties();
+    // this._update(null, 'local');
   };
 
   this.onSessionUpdate = function(change) {
-    this._updateTextProperties(change);
+    this._update(change);
   };
 
   this.onSessionDidUpdate = function() {
@@ -767,16 +767,18 @@ Surface.Prototype = function() {
     this.documentSession.setSelection(sel);
   };
 
-  this._updateTextProperties = function(change) {
+  this._update = function(change, localOnly) {
     // derive props for text property components from current state
+    var sel = this.getSelection();
     var _oldState = this._internalState;
     var _newState = {
-      selection: this.getSelection(),
+      selection: sel,
       selectionFragments: null,
       collaborators: this.getDocumentSession().getCollaborators(),
+      collaboratorFragments: null,
       hasNativeFocus: _oldState.hasNativeFocus,
     };
-    var updates = _updateSelectionFragments(this, this.getDocument(), _oldState, _newState);
+    var updates = _updateSelectionFragments(this, this.getDocument(), _oldState, _newState, localOnly);
     var textProperties = this._textProperties;
     if (change) {
       change.updated.forEach(function(_, path) {
@@ -787,19 +789,51 @@ Surface.Prototype = function() {
     }
     this._internalState = _newState;
 
-    if (Object.keys(updates).length > 0) {
+    var selectedNodeId;
+    if (sel.isNodeSelection()) {
+      selectedNodeId = sel.start.getNodeId();
+    }
+
+    var keys = Object.keys(updates);
+    if (keys.length > 0) {
       var selectionFragments = _newState.selectionFragments || {};
+      var collaboratorFragments = _newState.collaboratorFragments || {};
       // update text properties and rerender node fragments
       // console.log('Surface %s: updating text properties', this.getName(), Object.keys(updates));
-      each(updates, function(_, pathStr) {
-        var comp = textProperties[pathStr];
+      for (var i = 0; i < keys.length; i++) {
+        var key = keys[i];
+        var comp = textProperties[key];
+        var selFrag = selectionFragments[key];
+        var collabFrags = collaboratorFragments[key];
+        var frags = [];
+        if (selFrag) {
+          frags = [selFrag];
+        }
+        if (collabFrags) {
+          frags = frags.concat(collabFrags);
+        }
+        var props = {
+          fragments: frags
+        };
+        if (!comp && key.indexOf(',')<0) {
+          comp = this.refs[key];
+          if (!comp) {
+            comp = this.find('*[data-id="'+key+'"]');
+          }
+          if (key === selectedNodeId) {
+            props.mode = 'focused';
+          } else {
+            if (selFrag) {
+              props.mode = 'selected';
+            } else {
+              props.mode = null;
+            }
+          }
+        }
         if (comp) {
-          var props = {
-            fragments: selectionFragments[pathStr]
-          };
           comp.extendProps(props);
         }
-      });
+      }
     }
   };
 
@@ -941,19 +975,23 @@ Surface.Prototype = function() {
         } else {
           key = frag.path.toString();
         }
-        var frags = selectionFragments[key];
-        if (!frags) {
-          frags = [];
-          selectionFragments[key] = frags;
+        if (collaborator) {
+          var frags = selectionFragments[key];
+          if (!frags) {
+            frags = [];
+            selectionFragments[key] = frags;
+          }
+          frag.collaborator = collaborator;
+          frags.push(frag);
+        } else {
+          selectionFragments[key] = frag;
         }
-        frag.collaborator = collaborator;
-        frags.push(frag);
       });
     }
     return selectionFragments;
   }
 
-  function _updateSelectionFragments(surface, doc, _oldState, _newState) {
+  function _updateSelectionFragments(surface, doc, _oldState, _newState, localOnly) {
     var updates = {};
     var oldSelectionFragments = _oldState.selectionFragments;
     var newSelectionFragments = {};
@@ -969,38 +1007,57 @@ Surface.Prototype = function() {
         var offset = sel.startOffset;
         var key = path.toString();
         _newState.cursorFragment = new Selection.Cursor(path, offset);
-        if (!newSelectionFragments[key]) {
-          newSelectionFragments[key] = [];
-        }
-        newSelectionFragments[key].push(_newState.cursorFragment);
+        newSelectionFragments[key] = _newState.cursorFragment;
       } else if (!sel.isCollapsed()) {
         _computeSelectionFragments(doc, sel, newSelectionFragments);
       }
     }
+    var selKeys = Object.keys(newSelectionFragments);
+    if (selKeys.length > 0) {
+      _newState.selectionFragments = newSelectionFragments;
+      // properties which displayed the selection previously
+      selKeys.forEach(function(key) {
+        updates[key] = true;
+      });
+    }
+    // properties which display the selection currently
+    if (oldSelectionFragments) {
+      Object.keys(oldSelectionFragments).forEach(function(key) {
+        updates[key] = true;
+      });
+    }
+
+    if (localOnly) {
+      _newState.collaboratorFragments = _oldState.collaboratorFragments;
+      return updates;
+    }
+
     // if this.documentSession is a CollabSession there might
     // be other collaborators, for which we want to show the selection too
     var collaborators = _newState.collaborators;
+    var oldCollaboratorFragments = _oldState.collaboratorFragments;
+    var newCollaboratorFragments = {};
     if (collaborators) {
       each(collaborators, function(collaborator) {
         var sel = collaborator.selection;
         if (sel.surfaceId === surface.name) {
-          _computeSelectionFragments(doc, sel, newSelectionFragments, collaborator);
+          _computeSelectionFragments(doc, sel, newCollaboratorFragments, collaborator);
         }
       });
     }
-
-    if (Object.keys(newSelectionFragments).length > 0) {
-      _newState.selectionFragments = newSelectionFragments;
+    var collabKeys = Object.keys(newCollaboratorFragments);
+    if (collabKeys.length > 0) {
+      _newState.collaboratorFragments = newCollaboratorFragments;
+      collabKeys.forEach(function(key) {
+        updates[key] = true;
+      });
+    }
+    if (oldCollaboratorFragments) {
+      Object.keys(oldCollaboratorFragments).forEach(function(key) {
+        updates[key] = true;
+      });
     }
 
-    // properties which displayed the selection previously
-    each(oldSelectionFragments, function(_, key) {
-      updates[key] = true;
-    });
-    // properties which display the selection currently
-    each(newSelectionFragments, function(_, key) {
-      updates[key] = true;
-    });
     return updates;
   }
 

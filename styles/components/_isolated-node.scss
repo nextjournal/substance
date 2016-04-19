@@ -13,19 +13,25 @@
 */
   }
 
+  &.sm-selected {
+    > .se-container {
+      background: rgba(163,205,253, 0.6);
+    }
+  }
+
   &.sm-focused {
     > .se-container {
-      outline: 2px dashed;
+      background: rgba(163,205,253, 0.6);
+      outline: 2px solid;
       outline-color: $local-selection-color;
     }
   }
 
-  &.sm-selected {
-    > .se-container {
-      outline: 2px solid;
-      outline-color: $local-selection-color;
-      background: rgba(163,205,253, 0.6);
-    }
-  }
+  // &.sm-focused {
+  //   > .se-container {
+  //     outline: 2px solid;
+  //     outline-color: $local-selection-color;
+  //   }
+  // }
 
 }

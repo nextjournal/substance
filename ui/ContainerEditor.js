@@ -3,7 +3,6 @@
 var isString = require('lodash/isString');
 var each = require('lodash/each');
 var last = require('lodash/last');
-var extend = require('lodash/extend');
 var uuid = require('../util/uuid');
 var keys = require('../util/keys');
 var EditingBehavior = require('../model/EditingBehavior');
@@ -14,7 +13,6 @@ var paste = require('../model/transform/paste');
 var Surface = require('./Surface');
 var RenderingEngine = require('./RenderingEngine');
 var IsolatedNodeComponent = require('./IsolatedNodeComponent');
-var NestedSurface = require('./NestedSurface');
 
 /**
   Represents a flow editor that manages a sequence of nodes in a container. Needs to be
@@ -141,29 +139,13 @@ ContainerEditor.Prototype = function() {
     if (node.isText()) {
       return _super.renderNode.call(this, $$, node);
     } else {
-      // TODO: needs more thinking
-      // We should not implicitly wrap things into IsolatedNodeComponents
-      // Instead the component registered for the type should
-      // implement an IsolatedNodeComponent interface
-      var componentRegistry = this.getComponentRegistry();
+      var componentRegistry = this.context.componentRegistry;
       var ComponentClass = componentRegistry.get(node.type);
-      if (!ComponentClass) {
-        console.error('Could not resolve a component for type: ' + node.type);
-        return $$(IsolatedNodeComponent, { node: node });
+      if (ComponentClass.prototype._isIsolatedNodeComponent) {
+        return $$(ComponentClass, { node: node }).ref(node.id);
+      } else {
+        return $$(IsolatedNodeComponent, { node: node }).ref(node.id);
       }
-      if (!ComponentClass.static.isContainerEditor && !ComponentClass.static.isPropertyEditor) {
-        return $$(IsolatedNodeComponent, { node: node });
-      }
-      var props = extend({}, this.props);
-      props.ComponentClass = ComponentClass;
-      // NOTE: surface ids must be hierarchical
-      props.name = [this.name, node.id].join('.');
-      props.node = node;
-      if (ComponentClass.static.isContainerEditor) {
-        props.containerId = node.id;
-      }
-      props.enabled = false;
-      return $$(NestedSurface, props);
     }
   };
 
@@ -376,8 +358,10 @@ ContainerEditor.Prototype = function() {
               // elements is consistent
               nodeEl = renderContext.$$('div');
             }
+            debugger;
             this.insertAt(diff.getOffset(), nodeEl);
           } else if (diff.type === "delete") {
+            debugger;
             this.removeAt(diff.getOffset());
           }
         }
@@ -439,42 +423,6 @@ ContainerEditor.Prototype = function() {
   this._prepareArgs = function(args) {
     args.containerId = this.getContainerId();
     args.editingBehavior = this.editingBehavior;
-  };
-
-  this._registerNestedEditor = function(editor) {
-    this._nestedEditors[editor.props.node.id] = editor;
-  };
-
-  this._deregisterNestedEditor = function(editor) {
-    delete this._nestedEditors[editor.props.node.id];
-  };
-
-  // EXPERIMENTAL: trying to set the selection into an invisible element
-  // so that this surface will still receive ContentEditable events
-  this._selectNode = function(nodeId) {
-    var nestedEditor = this._nestedEditors[nodeId];
-    if (!nestedEditor) {
-      console.info('FIXME: selected node is not a nested editor.');
-      return;
-    }
-    var selectedNestedEditor = this._selectedNestedEditor;
-    if (selectedNestedEditor) {
-      if (selectedNestedEditor.__id__ !== nestedEditor.__id__) {
-        selectedNestedEditor._blurEditor(true);
-      }
-    }
-    if (nestedEditor) {
-      this._selectedNestedEditor = nestedEditor;
-      nestedEditor._select();
-      var _selComp = this.refs.selectionHideaway;
-      var wsel = window.getSelection();
-      if (!this._hiddenSelRange) {
-        this._hiddenSelRange = window.document.createRange();
-        this._hiddenSelRange.setStart(_selComp.el, 0);
-      }
-      wsel.removeAllRanges();
-      wsel.addRange(this._hiddenSelRange);
-    }
   };
 
 };

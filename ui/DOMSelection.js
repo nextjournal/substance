@@ -48,7 +48,7 @@ DOMSelection.Prototype = function() {
     @param {model/Selection} sel
   */
   this.setSelection = function(sel) {
-    // console.log('### renderSelection', sel.toString());
+    console.log('### renderSelection', sel.toString());
     var wSel = window.getSelection();
     if (sel.isNull()) {
       this.clear();
@@ -74,10 +74,16 @@ DOMSelection.Prototype = function() {
     // console.log('mapped to DOM coordinates', start.container, start.offset, end.container, end.offset, 'isReverse?', sel.isReverse());
 
     // if there is a range then set replace the window selection accordingly
+    var wRange;
+    if (wSel.rangeCount > 0) {
+      wRange = wSel.getRangeAt(0);
+    } else {
+      wRange = window.document.createRange();
+    }
     wSel.removeAllRanges();
-    var wRange = window.document.createRange();
     if (sel.isCollapsed()) {
       wRange.setStart(start.container, start.offset);
+      wRange.setEnd(start.container, start.offset);
       wSel.addRange(wRange);
     } else {
       if (sel.isReverse()) {
@@ -85,17 +91,21 @@ DOMSelection.Prototype = function() {
         var tmp = start;
         start = end;
         end = tmp;
+        // HACK: using wRange setEnd does not work reliably
+        // so we set just the start anchor
+        // and then use window.Selection.extend()
+        // unfortunately we are not able to test this behavior as it needs
+        // triggering native keyboard events
+        wRange.setStart(start.container, start.offset);
+        wSel.addRange(wRange);
+        wSel.extend(end.container, end.offset);
+      } else {
+        wRange.setStart(start.container, start.offset);
+        wRange.setEnd(end.container, end.offset);
+        wSel.addRange(wRange);
       }
-      // HACK: using wRange setEnd does not work reliably
-      // so we set just the start anchor
-      // and then use window.Selection.extend()
-      // unfortunately we are not able to test this behavior as it needs
-      // triggering native keyboard events
-      wRange.setStart(start.container, start.offset);
-      wSel.addRange(wRange);
-      wSel.extend(end.container, end.offset);
     }
-    // console.log('DOMSelection.setSelection()', 'anchorNode:', wSel.anchorNode, 'anchorOffset:', wSel.anchorOffset, 'focusNode:', wSel.focusNode, 'focusOffset:', wSel.focusOffset, 'collapsed:', wSel.collapsed);
+    console.log('DOMSelection.setSelection()', 'anchorNode:', wSel.anchorNode, 'anchorOffset:', wSel.anchorOffset, 'focusNode:', wSel.focusNode, 'focusOffset:', wSel.focusOffset, 'collapsed:', wSel.collapsed);
   };
 
   this._getDOMCoordinate = function(coor) {

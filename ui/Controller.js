@@ -360,6 +360,15 @@ Controller.Prototype = function() {
    */
   this.didFocus = function() {};
 
+  this.setActiveIsolatedNode = function(isolatedNode) {
+    if (this._activeIsolatedNode && this._activeIsolatedNode !== isolatedNode) {
+      this._activeIsolatedNode.setState({
+        mode: 'unfocused'
+      });
+    }
+    this._activeIsolatedNode = isolatedNode;
+  };
+
   // For now just delegate to the current surface
   // TODO: Remove. Let's only allow Document.transaction and Surface.transaction to
   // avoid confusion
@@ -428,33 +437,6 @@ Controller.Prototype = function() {
     doc.__dirty = true;
     var logger = this.getLogger();
     logger.info('Unsaved changes');
-  };
-
-  this.onSelectionChanged = function(sel) {
-    console.log('Controller.onSelectionChanged', sel);
-    /* jshint unused: false */
-    // No-op: Please override in custom controller class
-    var focusedSurface = this.focusedSurface;
-    if (!sel || sel.isNull() && focusedSurface) {
-      console.log('... selection is null. blurring surface %s', focusedSurface.name);
-      this.focusedSurface = null;
-      focusedSurface.blur();
-      return;
-    }
-    if (focusedSurface && focusedSurface.name !== sel.surfaceId) {
-      console.log('... focused surface has changed. blurring surface %s', focusedSurface.name);
-      this.focusedSurface = null;
-      focusedSurface.blur();
-      focusedSurface = null;
-    }
-    if (!focusedSurface) {
-      focusedSurface = this.surfaces[sel.surfaceId];
-      this.focusedSurface = focusedSurface;
-      if (focusedSurface) {
-        console.log('... focusing surface %s', focusedSurface.name);
-        focusedSurface.focus();
-      }
-    }
   };
 
   this.onCommandExecuted = function(info, commandName, cmd) {
