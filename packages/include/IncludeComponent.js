@@ -2,7 +2,7 @@
 
 var error = require('../../util/error');
 var BlockNodeComponent = require('../../ui/BlockNodeComponent');
-var UnsupportedNode = require('./unsupported_node');
+var UnsupportedNode = require('../../ui/UnsupportedNodeComponent');
 
 function IncludeComponent() {
   IncludeComponent.super.apply(this, arguments);
