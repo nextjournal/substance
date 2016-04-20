@@ -4,6 +4,8 @@ var isString = require('lodash/isString');
 var isFunction = require('lodash/isFunction');
 var extend = require('lodash/extend');
 var each = require('lodash/each');
+var assert = require('../util/assert');
+var warn = require('../util/warn');
 var EventEmitter = require('../util/EventEmitter');
 var RenderingEngine = require('./RenderingEngine');
 var VirtualElement = require('./VirtualElement');
@@ -305,7 +307,7 @@ Component.Prototype = function() {
       }
       comp = comp.getParent();
     }
-    console.warn('Action', action, 'was not handled.');
+    warn('Action', action, 'was not handled.');
     return false;
   };
 
@@ -524,7 +526,7 @@ Component.Prototype = function() {
   function _disposeChild(child) {
     child.triggerDispose();
     if (child._owner && child._ref) {
-      console.assert(child._owner.refs[child._ref] === child, "Owner's ref should point to this child instance.");
+      assert(child._owner.refs[child._ref] === child, "Owner's ref should point to this child instance.");
       delete child._owner.refs[child._ref];
     }
   }
@@ -588,7 +590,7 @@ function _unwrapComp(el) {
 }
 
 function _unwrapCompStrict(el) {
-  console.assert(el._comp, "Expecting a back-link to the component instance.");
+  assert(el._comp, "Expecting a back-link to the component instance.");
   return _unwrapComp(el);
 }
 

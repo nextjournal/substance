@@ -1,6 +1,7 @@
 'use strict';
 
 var oo = require('../util/oo');
+var error = require('../util/error');
 var EventEmitter = require('../util/EventEmitter');
 var Anchor = require('./Anchor');
 
@@ -201,7 +202,7 @@ Selection.fromJSON = function(json) {
       return CustomSelection.fromJSON(json);
     case 'default':
       // TODO: what if we have custom selections?
-      console.error('Selection.fromJSON(): unsupported selection data', json);
+      error('Selection.fromJSON(): unsupported selection data', json);
       return Selection.nullSelection;
   }
 };

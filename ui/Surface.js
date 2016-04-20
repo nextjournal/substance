@@ -5,6 +5,9 @@ var each = require('lodash/each');
 var extend = require('lodash/extend');
 var platform = require('../util/platform');
 var Registry = require('../util/Registry');
+var error = require('../util/error');
+var warn = require('../util/warn');
+var info = require('../util/info');
 var Selection = require('../model/Selection');
 var copySelection = require('../model/transform/copySelection');
 var insertText = require('../model/transform/insertText');
@@ -135,7 +138,7 @@ Surface.Prototype = function() {
     var componentRegistry = this.getComponentRegistry();
     var ComponentClass = componentRegistry.get(node.type);
     if (!ComponentClass) {
-      console.error('Could not resolve a component for type: ' + node.type);
+      error('Could not resolve a component for type: ' + node.type);
       ComponentClass = UnsupportedNode;
     }
     return $$(ComponentClass, {
@@ -204,7 +207,7 @@ Surface.Prototype = function() {
   this.executeCommand = function(commandName, args) {
     var cmd = this.getCommand(commandName);
     if (!cmd) {
-      console.warn('command', commandName, 'not registered on controller');
+      warn('command', commandName, 'not registered on controller');
       return;
     }
     // Run command
@@ -214,7 +217,7 @@ Surface.Prototype = function() {
       // TODO: We want to replace this with a more specific, scoped event
       // but for that we need an improved EventEmitter API
     } else if (info === undefined) {
-      console.warn('command ', commandName, 'must return either an info object or true when handled or false when not handled');
+      warn('command ', commandName, 'must return either an info object or true when handled or false when not handled');
     }
   };
 
@@ -237,12 +240,12 @@ Surface.Prototype = function() {
   this.enable = function() {
     // As opposed to a ContainerEditor, a regular Surface
     // is not a ContentEditable -- but every contained TextProperty
-    console.log('TODO: enable all contained TextProperties');
+    info('TODO: enable all contained TextProperties');
     this.enabled = true;
   };
 
   this.disable = function() {
-    console.log('TODO: disable all contained TextProperties');
+    info('TODO: disable all contained TextProperties');
     this.enabled = false;
   };
 
@@ -300,8 +303,8 @@ Surface.Prototype = function() {
   };
 
   this.setFocused = function() {
-    console.log('DEPRECATED: this is should not be necessary anymore.');
-    console.log('Maybe you want the native focus? then you can try surface.focus()');
+    warn('DEPRECATED: this is should not be necessary anymore.\n'+
+         'Maybe you want the native focus? then you can try surface.focus()');
   };
 
   this.getSelection = function() {
@@ -620,7 +623,7 @@ Surface.Prototype = function() {
     //      - Note: copy, cut, paste work just fine
     //  - dragging selected text
     //  - spell correction
-    console.info("We want to enable a DOM MutationObserver which catches all changes made by native interfaces (such as spell corrections, etc). Lookout for this message and try to set Surface.skipNextObservation=true when you know that you will mutate the DOM.");
+    info("We want to enable a DOM MutationObserver which catches all changes made by native interfaces (such as spell corrections, etc). Lookout for this message and try to set Surface.skipNextObservation=true when you know that you will mutate the DOM.");
   };
 
   this.onDragStart = function(event) {
@@ -885,7 +888,7 @@ Surface.Prototype = function() {
           if (cursorEl) {
             return cursorEl.getBoundingClientRect();
           } else {
-            console.log('FIXME: there should be a rendered cursor element.');
+            error('FIXME: there should be a rendered cursor element.');
             return {};
           }
         } else {
@@ -910,7 +913,7 @@ Surface.Prototype = function() {
               width: width, height: height
             };
           } else {
-            console.log('FIXME: there should be a rendered selection fragments element.');
+            error('FIXME: there should be a rendered selection fragments element.');
           }
         }
       }

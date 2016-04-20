@@ -12,7 +12,7 @@ ParagraphComponent.Prototype = function() {
 
   this.render = function($$) {
     var el = _super.render.call(this, $$);
-    return el.addClass('sc-paragraph')
+    return el.addClass('sc-paragraph');
   };
 
 };

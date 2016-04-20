@@ -3,6 +3,7 @@
 var isString = require('lodash/isString');
 var isNumber = require('lodash/isNumber');
 var oo = require('../util/oo');
+var assert = require('../util/assert');
 var DOMElement = require('./DOMElement');
 var DelegatedEvent = require('./DelegatedEvent');
 
@@ -13,7 +14,7 @@ var matches = (
 );
 
 function BrowserDOMElement(el) {
-  console.assert(el instanceof window.Node, "Expecting native DOM node.");
+  assert(el instanceof window.Node, "Expecting native DOM node.");
   this.el = el;
   el._wrapper = this;
   this.eventListeners = [];
@@ -428,7 +429,7 @@ BrowserDOMElement.Prototype = function() {
     if (!child.el._wrapper) {
       child.el._wrapper = child;
     }
-    console.assert(child.el._wrapper === child, "Expecting a backlink between native element and CheerioDOMElement");
+    assert(child.el._wrapper === child, "Expecting a backlink between native element and CheerioDOMElement");
     return child.getNativeElement();
   };
 
@@ -519,7 +520,7 @@ BrowserDOMElement.Prototype = function() {
   };
 
   this._replaceNativeEl = function(newEl) {
-    console.assert(newEl instanceof window.Node, "Expecting a native element.");
+    assert(newEl instanceof window.Node, "Expecting a native element.");
     var oldEl = this.el;
     var parentNode = oldEl.parentNode;
     if (parentNode) {
@@ -672,7 +673,7 @@ BrowserDOMElement.wrapNativeElement = function(el) {
 };
 
 function TextNode(nativeEl) {
-  console.assert(nativeEl instanceof window.Node && nativeEl.nodeType === 3, "Expecting native TextNode.");
+  assert(nativeEl instanceof window.Node && nativeEl.nodeType === 3, "Expecting native TextNode.");
   this.el = nativeEl;
   nativeEl._wrapper = this;
 }

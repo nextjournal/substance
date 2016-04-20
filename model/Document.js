@@ -1,3 +1,4 @@
+/* globals -Range */
 'use strict';
 
 var isEqual = require('lodash/isEqual');
@@ -5,8 +6,10 @@ var isObject = require('lodash/isObject');
 var isArray = require('lodash/isArray');
 var isString = require('lodash/isString');
 var each = require('lodash/each');
-var EventEmitter = require('../util/EventEmitter');
 var uuid = require('../util/uuid');
+var error = require('../util/error');
+var warn = require('../util/warn');
+var EventEmitter = require('../util/EventEmitter');
 var DocumentIndex = require('./DocumentIndex');
 var AnnotationIndex = require('./AnnotationIndex');
 var AnchorIndex = require('./AnchorIndex');
@@ -414,7 +417,7 @@ Document.Prototype = function() {
         endOffset: arguments[4]
       });
     } else {
-      console.error('Illegal arguments for Selection.create().', arguments);
+      error('Illegal arguments for Selection.create().', arguments);
       return Selection.nullSelection;
     }
   }
@@ -475,7 +478,7 @@ Document.Prototype = function() {
       var nodeId = coor.getNodeId();
       var node = doc.get(nodeId);
       if (!node.isText()) {
-        console.warn('Selecting a non-textish node partially is not supported. Select the full node.');
+        warn('Selecting a non-textish node partially is not supported. Select the full node.');
         coor.path = [nodeId];
         coor.offset = isStart ? 0 : 1;
       }
@@ -562,7 +565,7 @@ Document.Prototype = function() {
   };
 
   this.getTextForSelection = function(sel) {
-    console.warn('DEPRECATED: use docHelpers.getTextForSelection() instead.');
+    warn('DEPRECATED: use docHelpers.getTextForSelection() instead.');
     return docHelpers.getTextForSelection(this, sel);
   };
 

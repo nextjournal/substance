@@ -1,6 +1,7 @@
 'use strict';
 
 var each = require('lodash/each');
+var error = require('../../util/error');
 var Component = require('../../ui/Component');
 var UnsupportedNode = require('../../ui/UnsupportedNode');
 
@@ -40,7 +41,7 @@ MemberContainerComponent.Prototype = function() {
     var componentRegistry = this.context.componentRegistry;
     var ComponentClass = componentRegistry.get(memberNode.type);
     if (!ComponentClass) {
-      console.error('Could not resolve a component for type: ' + node.type);
+      error('Could not resolve a component for type: ' + node.type);
       ComponentClass = UnsupportedNode;
     }
     return $$(ComponentClass, {

@@ -1,6 +1,7 @@
 'use strict';
 
-var BlockNodeComponent = require('../Component');
+var error = require('../../util/error');
+var BlockNodeComponent = require('../../ui/BlockNodeComponent');
 var UnsupportedNode = require('./unsupported_node');
 
 function IncludeComponent() {
@@ -17,7 +18,7 @@ IncludeComponent.Prototype = function() {
     var componentRegistry = this.context.componentRegistry;
     var ComponentClass = componentRegistry.get(node.type);
     if (!ComponentClass) {
-      console.error('Could not resolve a component for type: ' + node.type);
+      error('Could not resolve a component for type: ' + node.type);
       ComponentClass = UnsupportedNode;
     }
 

@@ -1,8 +1,9 @@
-/* jshint latedef:nofunc */
-'use strict';
+/* globals -Range */
+"use strict";
 
 var last = require('lodash/last');
 var oo = require('../util/oo');
+var warn = require('../util/warn');
 var Coordinate = require('../model/Coordinate');
 var Range = require('../model/Range');
 var DefaultDOMElement = require('./DefaultDOMElement');
@@ -48,7 +49,7 @@ DOMSelection.Prototype = function() {
     @param {model/Selection} sel
   */
   this.setSelection = function(sel) {
-    console.log('### renderSelection', sel.toString());
+    // console.log('### renderSelection', sel.toString());
     var wSel = window.getSelection();
     if (sel.isNull()) {
       this.clear();
@@ -56,7 +57,7 @@ DOMSelection.Prototype = function() {
     }
     var start = this._getDOMCoordinate(sel.start);
     if (!start) {
-      console.warn('FIXME: selection seems to be invalid.');
+      warn('FIXME: selection seems to be invalid.');
       this.clear();
       return;
     }
@@ -66,7 +67,7 @@ DOMSelection.Prototype = function() {
     } else {
       end = this._getDOMCoordinate(sel.end);
       if (!end) {
-        console.warn('FIXME: selection seems to be invalid.');
+        warn('FIXME: selection seems to be invalid.');
         this.clear();
         return;
       }
@@ -105,7 +106,7 @@ DOMSelection.Prototype = function() {
         wSel.addRange(wRange);
       }
     }
-    console.log('DOMSelection.setSelection()', 'anchorNode:', wSel.anchorNode, 'anchorOffset:', wSel.anchorOffset, 'focusNode:', wSel.focusNode, 'focusOffset:', wSel.focusOffset, 'collapsed:', wSel.collapsed);
+    // console.log('DOMSelection.setSelection()', 'anchorNode:', wSel.anchorNode, 'anchorOffset:', wSel.anchorOffset, 'focusNode:', wSel.focusNode, 'focusOffset:', wSel.focusOffset, 'collapsed:', wSel.collapsed);
   };
 
   this._getDOMCoordinate = function(coor) {

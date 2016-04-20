@@ -1,9 +1,9 @@
-/* jshint latedef:nofunc */
 'use strict';
 
 var isNumber = require('lodash/isNumber');
-var AnnotatedTextComponent = require('./AnnotatedTextComponent');
+var error = require('../util/error');
 var Coordinate = require('../model/Coordinate');
+var AnnotatedTextComponent = require('./AnnotatedTextComponent');
 
 /**
   Renders a text property. Used internally by different components to render editable text.
@@ -192,7 +192,7 @@ TextPropertyComponent.Prototype = function() {
             charPos -= l;
           }
         } else {
-          console.error('FIXME: Can not map to DOM coordinates.');
+          error('FIXME: Can not map to DOM coordinates.');
           return null;
         }
       }

@@ -2,6 +2,7 @@
 
 var extend = require('lodash/extend');
 var each = require('lodash/each');
+var error = require('../util/error');
 var oo = require('../util/oo');
 var EventEmitter = require('../util/EventEmitter');
 var TransactionDocument = require('./TransactionDocument');
@@ -100,7 +101,7 @@ DocumentSession.Prototype = function() {
         this.emit('selection:changed', this.selection, this);
       }
     } else {
-      console.error('No change can be undone.');
+      error('No change can be undone.');
     }
   };
 
@@ -121,7 +122,7 @@ DocumentSession.Prototype = function() {
         this.emit('selection:changed', this.selection, this);
       }
     } else {
-      console.error('No change can be redone.');
+      error('No change can be redone.');
     }
   };
 

@@ -12,7 +12,7 @@ CodeblockComponent.Prototype = function() {
 
   this.render = function($$) {
     var el = _super.render.call(this, $$);
-    return el.addClass('sc-codeblock')
+    return el.addClass('sc-codeblock');
   };
 
 };

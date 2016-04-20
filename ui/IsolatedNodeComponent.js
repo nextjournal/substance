@@ -1,7 +1,8 @@
 'use strict';
 
-var Component = require('./Component');
+var error = require('../util/error');
 var Coordinate = require('../model/Coordinate');
+var Component = require('./Component');
 
 function IsolatedNodeComponent() {
   IsolatedNodeComponent.super.apply(this, arguments);
@@ -20,7 +21,7 @@ IsolatedNodeComponent.Prototype = function() {
   };
 
   this.render = function($$) {
-    console.log('##### IsolatedNodeComponent.render()', $$.capturing);
+    // console.log('##### IsolatedNodeComponent.render()', $$.capturing);
     var el = _super.render.apply(this, arguments);
 
     var node = this.props.node;
@@ -65,7 +66,7 @@ IsolatedNodeComponent.Prototype = function() {
     var componentRegistry = this.context.componentRegistry;
     var ComponentClass = componentRegistry.get(node.type);
     if (!ComponentClass) {
-      console.error('Could not resolve a component for type: ' + node.type);
+      error('Could not resolve a component for type: ' + node.type);
       return $$('div');
     } else {
       return $$(ComponentClass, { node: node });
@@ -73,7 +74,7 @@ IsolatedNodeComponent.Prototype = function() {
   };
 
   this.onMousedown = function(event) {
-    console.log('IsolatedNode %s: mousedown', this.props.node.id);
+    // console.log('IsolatedNode %s: mousedown', this.props.node.id);
     event.preventDefault();
     event.stopPropagation();
     switch (this.state.mode) {
@@ -125,7 +126,7 @@ IsolatedNodeComponent.getCoordinate = function(surfaceEl, node) {
       }
       return new Coordinate([nodeId], charPos);
     } else {
-      console.error('FIXME: expecting a data-id attribute on IsolatedNodeComponent');
+      error('FIXME: expecting a data-id attribute on IsolatedNodeComponent');
     }
   }
   return null;

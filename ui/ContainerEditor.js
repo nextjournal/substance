@@ -5,6 +5,7 @@ var each = require('lodash/each');
 var last = require('lodash/last');
 var uuid = require('../util/uuid');
 var keys = require('../util/keys');
+var warn = require('../util/warn');
 var EditingBehavior = require('../model/EditingBehavior');
 var breakNode = require('../model/transform/breakNode');
 var insertNode = require('../model/transform/insertNode');
@@ -106,7 +107,7 @@ ContainerEditor.Prototype = function() {
     var containerId = this.props.containerId;
     var containerNode = doc.get(this.props.containerId);
     if (!containerNode) {
-      console.warn('No container node found for ', this.props.containerId);
+      warn('No container node found for ', this.props.containerId);
     }
     el.addClass('sc-container-editor container-node ' + containerId)
       .attr({
@@ -221,7 +222,7 @@ ContainerEditor.Prototype = function() {
     TODO: Select first content to be found
   */
   this.selectFirst = function() {
-    console.warn('TODO: Implement selection of first content to be found.');
+    warn('TODO: Implement selection of first content to be found.');
   };
 
   /*
@@ -315,7 +316,7 @@ ContainerEditor.Prototype = function() {
     var doc = this.getDocument();
     var nodes = this.getContainer().nodes;
     if (nodes.length === 0) {
-      console.info('ContainerEditor.selectFirst(): Container is empty.');
+      warn('ContainerEditor.selectFirst(): Container is empty.');
       return;
     }
     var node = doc.get(nodes[0]);
@@ -358,10 +359,8 @@ ContainerEditor.Prototype = function() {
               // elements is consistent
               nodeEl = renderContext.$$('div');
             }
-            debugger;
             this.insertAt(diff.getOffset(), nodeEl);
           } else if (diff.type === "delete") {
-            debugger;
             this.removeAt(diff.getOffset());
           }
         }
@@ -371,7 +370,7 @@ ContainerEditor.Prototype = function() {
 
   this.onMouseDown = function(event) {
     if (!this.enabled) {
-      console.log('ContainerEditor %s is not enabled. Not reacting on mousedown.');
+      warn('ContainerEditor %s is not enabled. Not reacting on mousedown.');
       return;
     }
     if (this.isEditable()) {

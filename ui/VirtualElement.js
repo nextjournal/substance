@@ -1,4 +1,4 @@
-/* jshint latedef: false */
+'use strict';
 
 var isFunction = require('lodash/isFunction');
 var isString = require('lodash/isString');

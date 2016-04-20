@@ -1,8 +1,9 @@
 'use strict';
 
-var oo = require('../util/oo');
 var each = require('lodash/each');
 var isEqual = require('lodash/isEqual');
+var oo = require('../util/oo');
+var warn = require('../util/warn');
 var TreeIndex = require('../util/TreeIndex');
 
 var PathEventProxy = function(doc) {
@@ -25,12 +26,12 @@ PathEventProxy.Prototype = function() {
   };
 
   this.connect = function(listener, path, method) {
-    console.warn('DEPRECATED: use proxy.on(path, this.onPropertyChange, this) instead');
+    warn('DEPRECATED: use proxy.on(path, this.onPropertyChange, this) instead');
     this.on(path, method, listener);
   };
 
   this.disconnect = function(listener) {
-    console.warn('DEPRECATED: use proxy.off(this) instead');
+    warn('DEPRECATED: use proxy.off(this) instead');
     this.off(listener);
   };
 

@@ -1,9 +1,10 @@
 "use strict";
 
-var oo = require('../util/oo');
 var extend = require('lodash/extend');
-var Fragmenter = require('./Fragmenter');
+var error = require('../util/error');
+var oo = require('../util/oo');
 var Registry = require('../util/Registry');
+var Fragmenter = require('./Fragmenter');
 var encodeXMLEntities = require('../util/encodeXMLEntities');
 
 function DOMExporter(config) {
@@ -18,7 +19,7 @@ function DOMExporter(config) {
 
   config.converters.forEach(function(converter) {
     if (!converter.type) {
-      console.error('Converter must provide the type of the associated node.', converter);
+      error('Converter must provide the type of the associated node.', converter);
       return;
     }
     this.converters.add(converter.type, converter);

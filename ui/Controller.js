@@ -4,12 +4,13 @@ var isArray = require('lodash/isArray');
 var each = require('lodash/each');
 var extend = require('lodash/extend');
 var mergeWith = require('lodash/mergeWith');
-var Component = require('./Component');
-var ToolManager = require('./ToolManager');
+var warn = require('../util/warn');
 var Registry = require('../util/Registry');
 var Logger = require ('../util/Logger');
 var Selection = require('../model/Selection');
 var DocumentSession = require('../model/DocumentSession');
+var Component = require('./Component');
+var ToolManager = require('./ToolManager');
 
 // Setup default I18n
 var I18n = require('./i18n');
@@ -248,7 +249,7 @@ Controller.Prototype = function() {
   this.executeCommand = function(commandName) {
     var cmd = this.getCommand(commandName);
     if (!cmd) {
-      console.warn('command', commandName, 'not registered on controller');
+      warn('command', commandName, 'not registered on controller');
       return;
     }
     // Run command
@@ -258,7 +259,7 @@ Controller.Prototype = function() {
       /* TODO: We want to replace this with a more specific, scoped event
         but for that we need an improved EventEmitter API */
     } else if (info === undefined) {
-      console.warn('command ', commandName, 'must return either an info object or true when handled or false when not handled');
+      warn('command ', commandName, 'must return either an info object or true when handled or false when not handled');
     }
   };
 
@@ -290,7 +291,7 @@ Controller.Prototype = function() {
     if (name) {
       return this.surfaces[name];
     } else {
-      console.warn('Deprecated: Use getFocusedSurface. Always provide a name for getSurface otherwise.');
+      warn('Deprecated: Use getFocusedSurface. Always provide a name for getSurface otherwise.');
       return this.getFocusedSurface();
     }
   };
@@ -325,7 +326,7 @@ Controller.Prototype = function() {
   };
 
   this.getContainerId = function() {
-    console.error('DEPRECATED: use controller.getFocusedSurface().getContainerId() instead.');
+    warn('DEPRECATED: use controller.getFocusedSurface().getContainerId() instead.');
     var surface = this.getSurface();
     if (surface) {
       return surface.getContainerId();
