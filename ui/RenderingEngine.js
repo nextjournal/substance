@@ -51,6 +51,12 @@ RenderingEngine.Prototype = function() {
     } else if (vel._isVirtualTextNode) {
       comp = new Component.TextNode(parent, vel);
     }
+    if (vel._ref) {
+      comp._ref = vel._ref;
+    }
+    if (vel._owner) {
+      comp._owner = vel._owner._comp;
+    }
     vel._comp = comp;
     return comp;
   }

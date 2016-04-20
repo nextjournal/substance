@@ -478,25 +478,23 @@ Component.Prototype = function() {
     this.insertAt(this.getChildCount(), child);
   };
 
-  this.insertAt = function(pos, child) {
-    if (isString(child)) {
-      child = new VirtualElement.TextNode(child);
+  this.insertAt = function(pos, childEl) {
+    if (isString(childEl)) {
+      childEl = new VirtualElement.TextNode(childEl);
     }
-    if (!child._isVirtualElement) {
+    if (!childEl._isVirtualElement) {
       throw new Error('Invalid argument: "child" must be a VirtualElement.');
     }
-    var comp = new RenderingEngine()._renderChild(this, child);
-    this.el.insertAt(pos, comp.el);
-    if (this.isMounted()) {
-      comp.triggerDidMount(true);
-    }
+    var child = new RenderingEngine()._renderChild(this, childEl);
+    this.el.insertAt(pos, child.el);
+    _mountChild(this, child);
   };
 
   this.removeAt = function(pos) {
     var childEl = this.el.getChildAt(pos);
     if (childEl) {
-      var comp = _unwrapCompStrict(childEl);
-      comp.triggerDispose();
+      var child = _unwrapCompStrict(childEl);
+      _disposeChild(child);
       this.el.removeAt(pos);
     }
   };
@@ -505,7 +503,8 @@ Component.Prototype = function() {
     if (!child || !child._isComponent) {
       throw new Error('removeChild(): Illegal arguments. Expecting a Component instance.');
     }
-    child.triggerDispose();
+    // TODO: remove ref from owner
+    _disposeChild(child);
     this.el.removeChild(child.el);
   };
 
@@ -515,17 +514,34 @@ Component.Prototype = function() {
       throw new Error('replaceChild(): Illegal arguments. Expecting BrowserDOMElement instances.');
     }
     // Attention: Node.replaceChild has weird semantics
-    oldChild.triggerDispose();
+    _disposeChild(oldChild);
     this.el.replaceChild(newChild.el, oldChild.el);
     if (this.isMounted()) {
       newChild.triggerDidMount(true);
     }
   };
 
+  function _disposeChild(child) {
+    child.triggerDispose();
+    if (child._owner && child._ref) {
+      console.assert(child._owner.refs[child._ref] === child, "Owner's ref should point to this child instance.");
+      delete child._owner.refs[child._ref];
+    }
+  }
+
+  function _mountChild(parent, child) {
+    if (parent.isMounted()) {
+      child.triggerDidMount(true);
+    }
+    if (child._owner && child._ref) {
+      child._owner.refs[child._ref] = child;
+    }
+  }
+
   this.empty = function() {
     if (this.el) {
-      this.childNodes.forEach(function(child) {
-        child.triggerDispose();
+      this.getChildNodes().forEach(function(child) {
+        _disposeChild(child);
       });
       this.el.empty();
     }
@@ -533,7 +549,7 @@ Component.Prototype = function() {
   };
 
   this.remove = function() {
-    this.triggerDispose();
+    _disposeChild(this);
     this.el.remove();
   };
 
