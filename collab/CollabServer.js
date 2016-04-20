@@ -2,7 +2,7 @@
 
 var Server = require('./Server');
 var CollabEngine = require('./CollabEngine');
-var Err = require('../util/Error');
+var Err = require('../util/SubstanceError');
 var forEach = require('lodash/forEach');
 
 /*

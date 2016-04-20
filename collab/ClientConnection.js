@@ -1,7 +1,7 @@
 "use strict";
 
 var EventEmitter = require('../util/EventEmitter');
-var Err = require('../util/Error');
+var Err = require('../util/SubstanceError');
 var __id__ = 0;
 
 /**

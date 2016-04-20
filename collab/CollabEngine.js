@@ -6,10 +6,10 @@ var map = require('lodash/map');
 var extend = require('lodash/extend');
 var DocumentChange = require('../model/DocumentChange');
 var Selection = require('../model/Selection');
-var Err = require('../util/Error');
+var Err = require('../util/SubstanceError');
 
 /*
-  Engine for realizing collaborative editing. Implements the server-methods of 
+  Engine for realizing collaborative editing. Implements the server-methods of
   the real time editing as a reusable library.
 */
 function CollabEngine(documentEngine) {
@@ -176,7 +176,7 @@ CollabEngine.Prototype = function() {
   */
   this._syncFF = function(args, cb) {
     this._updateCollaboratorSelections(args.documentId, args.change);
-    
+
     // HACK: On connect we may receive a nop that only has selection data.
     // We don't want to store such changes.
     // TODO: it would be nice if we could handle this in a different
@@ -189,7 +189,7 @@ CollabEngine.Prototype = function() {
         version: args.version
       });
     }
-    
+
     // Store the commit
     this.documentEngine.addChange({
       documentId: args.documentId,
@@ -267,7 +267,7 @@ CollabEngine.Prototype = function() {
         return ops.concat(change.ops);
       }, []);
       var serverChange = new DocumentChange(ops, {}, {});
-      
+
       cb(null, {
         change: this.serializeChange(a),
         serverChange: this.serializeChange(serverChange),

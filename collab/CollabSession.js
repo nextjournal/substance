@@ -6,7 +6,7 @@ var DocumentChange = require('../model/DocumentChange');
 var debounce = require('lodash/debounce');
 var cloneDeep = require('lodash/cloneDeep');
 var Selection = require('../model/Selection');
-var Err = require('../util/Error');
+var Err = require('../util/SubstanceError');
 
 /*
   Session that is connected to a Substance Hub allowing
