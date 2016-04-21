@@ -46,15 +46,18 @@ TextPropertyEditor.Prototype = function() {
   this.render = function($$) {
     var el = _super.render.apply(this, arguments);
     el.addClass("sc-text-property-editor");
+    if (!this.props.disabled) {
+      el.addClass('enabled');
+    }
+    if (this.isEditable()) {
+      el.attr('contenteditable', true);
+    }
     el.append(
       $$(TextProperty, {
         tagName: "div",
         path: this.props.path
       })
     );
-    if (this.isEditable()) {
-      el.attr('contenteditable', true);
-    }
     return el;
   };
 

@@ -20,6 +20,17 @@ IsolatedNodeComponent.Prototype = function() {
     });
   };
 
+  this.didUpdate = function() {
+    _super.didUpdate.apply(this, arguments);
+
+    // when this node is focused, we enable the controls of the content element
+    if (this.state.mode === 'focused') {
+      this.activate();
+    } else {
+      this.deactivate();
+    }
+  };
+
   this.render = function($$) {
     // console.log('##### IsolatedNodeComponent.render()', $$.capturing);
     var el = _super.render.apply(this, arguments);
@@ -53,14 +64,6 @@ IsolatedNodeComponent.Prototype = function() {
     return el;
   };
 
-  // this.didUpdate = function() {
-  //   _super.didUpdate.apply(this, arguments);
-
-  //   if (this.state.mode !== 'unfocused') {
-  //     this.context.controller.setActiveIsolatedNode(this);
-  //   }
-  // };
-
   this.renderContent = function($$) {
     var node = this.props.node;
     var componentRegistry = this.context.componentRegistry;
@@ -69,7 +72,26 @@ IsolatedNodeComponent.Prototype = function() {
       error('Could not resolve a component for type: ' + node.type);
       return $$('div');
     } else {
-      return $$(ComponentClass, { node: node });
+      return $$(ComponentClass, {
+        node: node,
+        disabled: this.state.mode !== 'focused'
+      }).ref('content');
+    }
+  };
+
+  this.activate = function() {
+    if (this.refs.content.props.disabled) {
+      this.refs.content.extendProps({
+        disabled: false
+      });
+    }
+  };
+
+  this.deactivate = function() {
+    if (!this.refs.content.props.disabled) {
+      this.refs.content.extendProps({
+        disabled: true
+      });
     }
   };
 
@@ -79,20 +101,12 @@ IsolatedNodeComponent.Prototype = function() {
     event.stopPropagation();
     switch (this.state.mode) {
       case 'focused':
-        this.activate();
-        this.setState({
-          mode: 'active'
-        });
         break;
       default:
         this._selectNode();
         break;
     }
   };
-
-  this.activate = function() {};
-
-  this.deactivate = function() {};
 
   this._selectNode = function() {
     var surface = this.context.surface;
