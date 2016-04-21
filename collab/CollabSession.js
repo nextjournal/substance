@@ -1,12 +1,14 @@
 'use strict';
 
 var forEach = require('lodash/forEach');
-var DocumentSession = require('../model/DocumentSession');
-var DocumentChange = require('../model/DocumentChange');
 var debounce = require('lodash/debounce');
 var cloneDeep = require('lodash/cloneDeep');
-var Selection = require('../model/Selection');
+var warn = require('../util/warn');
+var error = require('../util/error');
 var Err = require('../util/SubstanceError');
+var DocumentSession = require('../model/DocumentSession');
+var DocumentChange = require('../model/DocumentChange');
+var Selection = require('../model/Selection');
 
 /*
   Session that is connected to a Substance Hub allowing
@@ -22,11 +24,11 @@ function CollabSession(doc, config) {
   this.collabClient = config.collabClient;
 
   if (config.docVersion) {
-    console.warn('config.docVersion is deprecated: Use config.version instead');
+    warn('config.docVersion is deprecated: Use config.version instead');
   }
 
   if (config.docVersion) {
-    console.warn('config.docId is deprecated: Use config.documentId instead');
+    warn('config.docId is deprecated: Use config.documentId instead');
   }
 
   this.version = config.version || config.docVersion;
@@ -85,7 +87,7 @@ CollabSession.Prototype = function() {
     This happens in a reconnect scenario.
   */
   this._onCollabClientConnected = function() {
-    console.log('CollabClient connected');
+    // console.log('CollabClient connected');
     // Attempt to sync
     if (this.autoSync) {
       this.sync();
@@ -96,7 +98,7 @@ CollabSession.Prototype = function() {
     Implicit disconnect (server connection drop out)
   */
   this._onCollabClientDisconnected = function() {
-    console.log('CollabClient disconnected');
+    // console.log('CollabClient disconnected');
     this._abortSync();
     if (this._connected) {
       this._afterDisconnected();
@@ -128,7 +130,7 @@ CollabSession.Prototype = function() {
     // Delegate
     var actionFn = this[msg.type];
     if (!actionFn) {
-      console.error('CollabSession: unsupported message', msg.type, msg);
+      error('CollabSession: unsupported message', msg.type, msg);
       return false;
     }
     actionFn = actionFn.bind(this);
@@ -147,7 +149,7 @@ CollabSession.Prototype = function() {
     var err = Err.fromJSON(error);
 
     if (!errorFn) {
-      console.error('CollabSession: unsupported error', error.name);
+      error('CollabSession: unsupported error', error.name);
       return false;
     }
 
@@ -160,7 +162,7 @@ CollabSession.Prototype = function() {
     Handle sync error
   */
   this.syncError = function(error) {
-    console.error('sync error occured', error);
+    error('sync error occured', error);
     this._abortSync();
   };
 
@@ -258,7 +260,7 @@ CollabSession.Prototype = function() {
       this._nextChange = null;
       this._error = null;
     } else {
-      console.error('Can not sync. Either collabClient is not connected or we are already syncing');
+      error('Can not sync. Either collabClient is not connected or we are already syncing');
     }
   };
 
@@ -475,12 +477,12 @@ CollabSession.Prototype = function() {
       }
       var collaboratorsChanged = this._updateCollaborators(collaborators);
 
-      this._triggerUpdateEvent(serverChange, { replay: false, remote: true })
+      this._triggerUpdateEvent(serverChange, { replay: false, remote: true });
       if (collaboratorsChanged) {
         this.emit('collaborators:changed');
       }
     } else {
-      console.log('skipped remote update. Pending sync or local changes.');
+      // console.log('skipped remote update. Pending sync or local changes.');
     }
   };
 
@@ -502,7 +504,7 @@ CollabSession.Prototype = function() {
       this.collabClient.send(msg);
       return true;
     } else {
-      console.warn('Try not to call _send when disconnected. Skipping message', msg);
+      warn('Try not to call _send when disconnected. Skipping message', msg);
       return false;
     }
   };

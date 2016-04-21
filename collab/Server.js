@@ -1,8 +1,9 @@
 "use strict";
 
-var EventEmitter = require('../util/EventEmitter');
 var oo = require('../util/oo');
+var error = require('../util/error');
 var uuid = require('../util/uuid');
+var EventEmitter = require('../util/EventEmitter');
 
 /**
   Server
@@ -217,7 +218,7 @@ Server.Prototype = function() {
     if (this._isWebsocketOpen(ws)) {
       ws.send(this.serializeMessage(message));
     } else {
-      console.error('Server#send: Websocket for collaborator', collaboratorId, 'is no longer open', message);
+      error('Server#send: Websocket for collaborator', collaboratorId, 'is no longer open', message);
     }
   };
 

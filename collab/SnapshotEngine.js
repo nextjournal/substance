@@ -1,3 +1,5 @@
+'use strict';
+
 var oo = require('../util/oo');
 var JSONConverter = require('../model/JSONConverter');
 var converter = new JSONConverter();
