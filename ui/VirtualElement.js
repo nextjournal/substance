@@ -522,9 +522,13 @@ VirtualComponent.Prototype = function() {
     return new Outlet(this, name);
   };
 
-  this._attach = function() {};
+  this._attach = function(child) {
+    child._preliminaryParent = this;
+  };
 
-  this._detach = function() {};
+  this._detach = function(child) {
+    child._preliminaryParent = null;
+  };
 
   this._copyHTMLConfig = function() {
     return {
@@ -558,7 +562,11 @@ VirtualComponent.Prototype = function() {
   };
 
   Outlet.prototype.empty = function() {
-    this.virtualEl.props[this.name] = [];
+    var arr = this.virtualEl.props[this.name];
+    arr.forEach(function(el) {
+      this._detach(el);
+    }.bind(this));
+    arr.splice(0, arr.length);
     return this;
   };
 

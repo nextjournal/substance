@@ -383,7 +383,19 @@ RenderingEngine.Prototype = function() {
       // TODO: can we somehow avoid poluting the component?
       comp.__isMapped__ = true;
       comp = comp.getParent();
-      vc = vc.getParent();
+      if (vc.parent) {
+        vc = vc.parent;
+      }
+      // to be able to support implicit retaining of elements
+      // we need to propagate mapping through the 'preliminary' parent chain
+      // i.e. not taking the real parents as rendered, but the Components into which
+      // we have passed children (via vel.append() or vel.outlet().append())
+      else if (vc._preliminaryParent) {
+        while (comp && comp._isElementComponent) {
+          comp = comp.getParent();
+        }
+        vc = vc._preliminaryParent;
+      }
     }
   }
 
