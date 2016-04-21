@@ -483,8 +483,8 @@ RenderingEngine.Prototype = function() {
       if (newHash.hasOwnProperty(key)) {
         var oldVal = oldHash[key];
         var newVal = newHash[key];
+        updatedKeys[key] = true;
         if (oldVal !== newVal) {
-          updatedKeys[key] = true;
           update(key, newVal);
         }
       }
