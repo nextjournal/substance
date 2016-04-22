@@ -629,6 +629,13 @@ Surface.Prototype = function() {
     // The opposite situation, when the surface gets focused event.g. using keyboard
     // then the handler needs to kick in and recover a persisted selection or such
     this.skipNextFocusEvent = true;
+    setTimeout(function() {
+      if (this.domSelection) {
+        var sel = this.domSelection.getSelection();
+        this.setSelection(sel);
+      }
+    }.bind(this));
+
     // Bind mouseup to the whole document in case of dragging out of the surface
     if (this.documentEl) {
       this.documentEl.on('mouseup', this.onMouseUp, this, { once: true });
