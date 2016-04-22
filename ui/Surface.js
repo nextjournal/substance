@@ -149,11 +149,14 @@ Surface.Prototype = function() {
   this.didUpdate = function() {
     _super.didUpdate.call(this);
 
+    var nocursor = !this.hasNativeFocus;
+
     var self = this;
     each(this.props.fragments, function(frags, key) {
       if (self._textProperties[key]) {
         self._textProperties[key].extendProps({
-          fragments: frags
+          fragments: frags,
+          nocursor: nocursor
         });
       }
     });
