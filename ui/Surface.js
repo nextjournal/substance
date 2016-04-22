@@ -8,7 +8,6 @@ var Registry = require('../util/Registry');
 var error = require('../util/error');
 var warn = require('../util/warn');
 var info = require('../util/info');
-var Selection = require('../model/Selection');
 var copySelection = require('../model/transform/copySelection');
 var insertText = require('../model/transform/insertText');
 var deleteSelection = require('../model/transform/deleteSelection');
@@ -41,6 +40,13 @@ function Surface() {
   if (!this.name) {
     throw new Error('Surface must have a name.');
   }
+  if (this.name.indexOf('/') > -1) {
+    // because we are using '/' to deal with nested surfaces (isolated nodes)
+    throw new Error("Surance.name must not contain '/'");
+  }
+  // this path is an identifier unique for this surface
+  // considering nesting in IsolatedNodes
+  this._surfaceId = _createSurfaceId(this);
 
   this.clipboard = new Clipboard(this);
 
@@ -86,6 +92,14 @@ function _createCommandRegistry(surface, commands) {
   return commandRegistry;
 }
 
+function _createSurfaceId(surface) {
+  var surfaceParent = surface.getSurfaceParent();
+  if (surfaceParent) {
+    return surfaceParent.getId() + '/' + surface.name;
+  } else {
+    return surface.name;
+  }
+}
 
 Surface.Prototype = function() {
 
@@ -187,12 +201,17 @@ Surface.Prototype = function() {
   this.getChildContext = function() {
     return {
       surface: this,
+      surfaceParent: this,
       doc: this.getDocument()
     };
   };
 
   this.getName = function() {
     return this.name;
+  };
+
+  this.getId = function() {
+    return this._surfaceId;
   };
 
   this.isEditable = function() {
@@ -297,7 +316,7 @@ Surface.Prototype = function() {
    */
   this.transaction = function(transformation) {
     var documentSession = this.documentSession;
-    var surfaceId = this.getName();
+    var surfaceId = this.getId();
     var self = this;
     // using the silent version, so that the selection:changed event does not get emitted too early
     documentSession.transaction(function(tx, args) {
@@ -318,6 +337,13 @@ Surface.Prototype = function() {
     return this.documentSession.getSelection();
   };
 
+  /*
+    Internal method to access the surface parent.
+  */
+  this.getSurfaceParent = function() {
+    return this.context.surfaceParent;
+  };
+
   /**
    * Set the model selection and update the DOM selection accordingly
    */
@@ -326,7 +352,7 @@ Surface.Prototype = function() {
     // storing the surface id so that we can associate
     // the selection with this surface later
     if (sel && !sel.isNull()) {
-      sel.surfaceId = this.name;
+      sel.surfaceId = this.getId();
     }
     this._setSelection(sel);
   };

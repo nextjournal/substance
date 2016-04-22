@@ -49,7 +49,7 @@ TextPropertyEditor.Prototype = function() {
     if (!this.props.disabled) {
       el.addClass('enabled');
     }
-    if (this.isEditable()) {
+    if (this.isEditable() && !this.props.disabled) {
       el.attr('contenteditable', true);
     }
     el.append(
@@ -74,20 +74,22 @@ TextPropertyEditor.Prototype = function() {
   };
 
   this.onMouseDown = function(event) {
-    if (this.isEditable()) {
+    if (this.isEditable() && !this.props.disabled) {
       this.attr('contentEditable', true);
     }
     _super.onMouseDown.call(this, event);
   };
 
   this.onNativeBlur = function(event) {
-    this.attr('contentEditable', false);
+    // console.log('Disabling contenteditable', this.getId());
+    this.attr('contenteditable', false);
     _super.onNativeBlur.call(this, event);
   };
 
   this.onNativeFocus = function(event) {
     var sel = this.getSelection();
-    if (sel && !sel.isNull() && sel.surfaceId === this.name && this.isEditable()) {
+    if (sel && !sel.isNull() && sel.surfaceId === this.getId() && this.isEditable()) {
+      // console.log('Enabling contenteditable', this.getId());
       this.attr('contentEditable', true);
     }
     _super.onNativeFocus.call(this, event);

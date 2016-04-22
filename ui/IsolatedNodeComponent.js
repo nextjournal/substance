@@ -6,6 +6,18 @@ var Component = require('./Component');
 
 function IsolatedNodeComponent() {
   IsolatedNodeComponent.super.apply(this, arguments);
+
+  this.name = this.props.node.id;
+  this._id = _createId(this);
+}
+
+function _createId(isolatedNodeComp) {
+  var surfaceParent = isolatedNodeComp.getSurfaceParent();
+  if (surfaceParent) {
+    return surfaceParent.getId() + '/' + isolatedNodeComp.name;
+  } else {
+    return isolatedNodeComp.name;
+  }
 }
 
 IsolatedNodeComponent.Prototype = function() {
@@ -13,6 +25,12 @@ IsolatedNodeComponent.Prototype = function() {
   var _super = IsolatedNodeComponent.super.prototype;
 
   this._isIsolatedNodeComponent = true;
+
+  this.getChildContext = function() {
+    return {
+      surfaceParent: this
+    };
+  };
 
   this.willReceiveProps = function(nextProps) {
     this.setState({
@@ -93,6 +111,14 @@ IsolatedNodeComponent.Prototype = function() {
         disabled: true
       });
     }
+  };
+
+  this.getId = function() {
+    return this._id;
+  };
+
+  this.getSurfaceParent = function() {
+    return this.context.surface;
   };
 
   this.onMousedown = function(event) {
