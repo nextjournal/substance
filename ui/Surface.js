@@ -86,7 +86,10 @@ function _createCommandRegistry(surface, commands) {
   return commandRegistry;
 }
 
+
 Surface.Prototype = function() {
+
+  var _super = Surface.super.prototype;
 
   this.render = function($$) {
     var tagName = this.props.tagName || 'div';
@@ -129,6 +132,19 @@ Surface.Prototype = function() {
     return el;
   };
 
+  this.didUpdate = function() {
+    _super.didUpdate.call(this);
+
+    var self = this;
+    each(this.props.fragments, function(frags, key) {
+      if (self._textProperties[key]) {
+        self._textProperties[key].extendProps({
+          fragments: frags
+        });
+      }
+    });
+  };
+
   this.getComponentRegistry = function() {
     return this.context.componentRegistry || this.props.componentRegistry;
   };
@@ -148,23 +164,14 @@ Surface.Prototype = function() {
   };
 
   this.didMount = function() {
-    this.documentSession.on('update', this.onSessionUpdate, this);
-    this.documentSession.on('didUpdate', this.onSessionDidUpdate, this);
-
     if (this.context.surfaceManager) {
       this.context.surfaceManager.registerSurface(this);
     }
-
     if (!this.isReadonly()) {
       this.domSelection = this._createDOMSelection();
       this.clipboard.didMount();
       // Document Change Events
       this.domObserver.observe(this.el.getNativeElement(), this.domObserverConfig);
-      var sel = this.getSelection();
-      if (sel.surfaceId === this.name) {
-        this.el.focus();
-        this._updateTextProperties();
-      }
     }
   };
 
@@ -328,7 +335,7 @@ Surface.Prototype = function() {
     if (this._internalState.hasNativeFocus) {
       this.el.blur();
     } else {
-      this._update(null, 'local');
+      this.rerender();
     }
     this.emit('surface:blurred', this);
   };
@@ -337,7 +344,7 @@ Surface.Prototype = function() {
     if (!this._internalState.hasNativeFocus) {
       this.el.focus();
     }
-    this._update(null, 'local');
+    this.rerender();
     this.emit('surface:focused', this);
   };
 
@@ -351,7 +358,7 @@ Surface.Prototype = function() {
     }
   };
 
-  this.rerenderDomSelection = function() {
+  this.rerenderDOMSelection = function() {
     if (this.domSelection) {
       var sel = this.getSelection();
       this.domSelection.setSelection(sel);
@@ -641,7 +648,7 @@ Surface.Prototype = function() {
     }
     // native blur does not lead to a session update,
     // thus we need to update the selection manually
-    // this._update(null, 'local');
+    this.rerender();
   };
 
   this.onNativeFocus = function() {
@@ -657,31 +664,7 @@ Surface.Prototype = function() {
     }
     // native blur does not lead to a session update,
     // thus we need to update the selection manually
-    // this._update(null, 'local');
-  };
-
-  this.onSessionUpdate = function(change) {
-    this._update(change);
-  };
-
-  this.onSessionDidUpdate = function() {
-    // console.log('Rerendering DOM selection after document change.', this.__id__);
-    var sel = this.getSelection();
-    if (sel.surfaceId === this.getName()) {
-      if (inBrowser &&
-          // HACK: in our examples we are hosting two instances of one editor
-          // which reside in IFrames. To avoid competing DOM selection updates
-          // we update only the one which as a focused document.
-          (!Surface.MULTIPLE_APPS_ON_PAGE || window.document.hasFocus())) {
-        // HACK: under FF we must make sure that the contenteditable is
-        // focused.
-        if (!this._internalState.hasNativeFocus) {
-          this.skipNextFocusEvent = true;
-          this.el.focus();
-        }
-        this.rerenderDomSelection();
-      }
-    }
+    this.rerender();
   };
 
   // Internal implementations
@@ -768,76 +751,6 @@ Surface.Prototype = function() {
       this.el.focus();
     }
     this.documentSession.setSelection(sel);
-  };
-
-  this._update = function(change, localOnly) {
-    // derive props for text property components from current state
-    var sel = this.getSelection();
-    var _oldState = this._internalState;
-    var _newState = {
-      selection: sel,
-      selectionFragments: null,
-      collaborators: this.getDocumentSession().getCollaborators(),
-      collaboratorFragments: null,
-      hasNativeFocus: _oldState.hasNativeFocus,
-    };
-    var updates = _updateSelectionFragments(this, this.getDocument(), _oldState, _newState, localOnly);
-    var textProperties = this._textProperties;
-    if (change) {
-      change.updated.forEach(function(_, path) {
-        if (textProperties[path]) {
-          updates[path] = true;
-        }
-      });
-    }
-    this._internalState = _newState;
-
-    var selectedNodeId;
-    if (sel.isNodeSelection()) {
-      selectedNodeId = sel.start.getNodeId();
-    }
-
-    var keys = Object.keys(updates);
-    if (keys.length > 0) {
-      var selectionFragments = _newState.selectionFragments || {};
-      var collaboratorFragments = _newState.collaboratorFragments || {};
-      // update text properties and rerender node fragments
-      // console.log('Surface %s: updating text properties', this.getName(), Object.keys(updates));
-      for (var i = 0; i < keys.length; i++) {
-        var key = keys[i];
-        var comp = textProperties[key];
-        var selFrag = selectionFragments[key];
-        var collabFrags = collaboratorFragments[key];
-        var frags = [];
-        if (selFrag) {
-          frags = [selFrag];
-        }
-        if (collabFrags) {
-          frags = frags.concat(collabFrags);
-        }
-        var props = {
-          fragments: frags
-        };
-        if (!comp && key.indexOf(',')<0) {
-          comp = this.refs[key];
-          if (!comp) {
-            comp = this.find('*[data-id="'+key+'"]');
-          }
-          if (key === selectedNodeId) {
-            props.mode = 'focused';
-          } else {
-            if (selFrag) {
-              props.mode = 'selected';
-            } else {
-              props.mode = null;
-            }
-          }
-        }
-        if (comp) {
-          comp.extendProps(props);
-        }
-      }
-    }
   };
 
   this._updateModelSelection = function(options) {
@@ -942,127 +855,9 @@ Surface.Prototype = function() {
     }
   };
 
-  this._getNodeComponent = function(nodeId) {
-    var nodeEl = this.el.querySelector('*[data-id="'+nodeId+'"]');
-    if (!nodeEl) {
-      return null;
-    }
-    var comp = nodeEl.component;
-    return comp;
-  };
-
   this._getTextPropertyComponent = function(path) {
     return this._textProperties[path];
   };
-
-  function _computeSelectionFragments(doc, sel, selectionFragments, collaborator) {
-    selectionFragments = selectionFragments || {};
-    if (sel && !sel.isNull()) {
-      // console.log('Computing selection fragments for', sel.toString());
-      var fragments = sel.getFragments();
-      fragments.forEach(function(frag) {
-        var key;
-        if (frag.isNodeFragment()) {
-          var node = doc.get(frag.getNodeId());
-          // HACK: we replace NodeFragments for TextNodes
-          // by a PropertyFragment so that the selection is rendered
-          // in the same way as other property fragments
-          if (node.isText()) {
-            var path = node.getTextPath();
-            var len = node.getText().length;
-            frag = new Selection.Fragment(path, 0, len, true);
-            key = path.join(',');
-          } else {
-            key = node.id;
-          }
-        } else {
-          key = frag.path.toString();
-        }
-        if (collaborator) {
-          var frags = selectionFragments[key];
-          if (!frags) {
-            frags = [];
-            selectionFragments[key] = frags;
-          }
-          frag.collaborator = collaborator;
-          frags.push(frag);
-        } else {
-          selectionFragments[key] = frag;
-        }
-      });
-    }
-    return selectionFragments;
-  }
-
-  function _updateSelectionFragments(surface, doc, _oldState, _newState, localOnly) {
-    var updates = {};
-    var oldSelectionFragments = _oldState.selectionFragments;
-    var newSelectionFragments = {};
-    // local selection
-    var sel = _newState.selection;
-
-    if (sel.surfaceId === surface.name) {
-      // Note: we don't render a cursor when this is focused
-      // as otherwise we would interfer to much with ContentEditable.
-      // Such as double-click makes troubles in FF.
-      if (!_newState.hasNativeFocus && sel.isCollapsed()) {
-        var path = sel.startPath;
-        var offset = sel.startOffset;
-        var key = path.toString();
-        _newState.cursorFragment = new Selection.Cursor(path, offset);
-        newSelectionFragments[key] = _newState.cursorFragment;
-      } else if (!sel.isCollapsed()) {
-        _computeSelectionFragments(doc, sel, newSelectionFragments);
-      }
-    }
-    var selKeys = Object.keys(newSelectionFragments);
-    if (selKeys.length > 0) {
-      _newState.selectionFragments = newSelectionFragments;
-      // properties which displayed the selection previously
-      selKeys.forEach(function(key) {
-        updates[key] = true;
-      });
-    }
-    // properties which display the selection currently
-    if (oldSelectionFragments) {
-      Object.keys(oldSelectionFragments).forEach(function(key) {
-        updates[key] = true;
-      });
-    }
-
-    if (localOnly) {
-      _newState.collaboratorFragments = _oldState.collaboratorFragments;
-      return updates;
-    }
-
-    // if this.documentSession is a CollabSession there might
-    // be other collaborators, for which we want to show the selection too
-    var collaborators = _newState.collaborators;
-    var oldCollaboratorFragments = _oldState.collaboratorFragments;
-    var newCollaboratorFragments = {};
-    if (collaborators) {
-      each(collaborators, function(collaborator) {
-        var sel = collaborator.selection;
-        if (sel.surfaceId === surface.name) {
-          _computeSelectionFragments(doc, sel, newCollaboratorFragments, collaborator);
-        }
-      });
-    }
-    var collabKeys = Object.keys(newCollaboratorFragments);
-    if (collabKeys.length > 0) {
-      _newState.collaboratorFragments = newCollaboratorFragments;
-      collabKeys.forEach(function(key) {
-        updates[key] = true;
-      });
-    }
-    if (oldCollaboratorFragments) {
-      Object.keys(oldCollaboratorFragments).forEach(function(key) {
-        updates[key] = true;
-      });
-    }
-
-    return updates;
-  }
 
   this._createDOMSelection = function() {
     return new DOMSelection(this);
