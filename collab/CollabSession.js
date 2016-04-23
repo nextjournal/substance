@@ -1,7 +1,8 @@
 'use strict';
 
-var forEach = require('lodash/forEach');
 var debounce = require('lodash/debounce');
+var forEach = require('lodash/forEach');
+var clone = require('lodash/clone');
 var cloneDeep = require('lodash/cloneDeep');
 var warn = require('../util/warn');
 var error = require('../util/error');
@@ -53,6 +54,9 @@ function CollabSession(doc, config) {
   this._nextChange = null; // next change to be sent over the wire
   this._pendingChange = null; // change that is currently being synced
   this._error = null;
+
+  // Note: registering a second document:changed handler where we trigger sync requests
+  this.doc.on('document:changed', this.afterDocumentChange, this, {priority: -10});
 
   // Bind handlers
   this._broadCastSelectionUpdateDebounced = debounce(this._broadCastSelectionUpdate, 250);
@@ -222,25 +226,34 @@ CollabSession.Prototype = function() {
     ignore the update. We will receive all server updates on the next syncDone.
   */
   this.update = function(args) {
+    // console.log('CollabSession.update(): received remote update', args);
     var serverChange = args.change;
     var collaborators = args.collaborators;
     var serverVersion = args.version;
 
     if (!this._nextChange && !this._pendingChange) {
+      var oldSelection = this.selection;
       if (serverChange) {
         serverChange = this.deserializeChange(serverChange);
         this._applyRemoteChange(serverChange);
       }
+      var newSelection = this.selection;
       if (serverVersion) {
         this.version = serverVersion;
+      }
+      var update = {
+        change: serverChange
+      };
+      if (newSelection !== oldSelection) {
+        update.selection = newSelection;
       }
       // collaboratorsChange only contains information about
       // changed collaborators
       var collaboratorsChange = this._updateCollaborators(collaborators);
-      this._triggerUpdateEvent({
-        change: serverChange,
-        collaborators: collaboratorsChange,
-      }, { remote: true });
+      if (collaboratorsChange) {
+        update.collaborators = collaboratorsChange;
+      }
+      this._triggerUpdateEvent(update, { remote: true });
     } else {
       // console.log('skipped remote update. Pending sync or local changes.');
     }
@@ -281,13 +294,15 @@ CollabSession.Prototype = function() {
     // Each time the sync worked we consider the system connected
     this._connected = true;
 
-    this._triggerUpdateEvent({
-      change: serverChange,
-      collaborators: collaboratorsChange
-    }, { remote: true });
+    var update = {
+      change: serverChange
+    };
+    if (collaboratorsChange) {
+      update.collaborators = collaboratorsChange;
+    }
+    this._triggerUpdateEvent(update, { remote: true });
 
     this.emit('connected');
-
     // Attempt to sync again (maybe we have new local changes)
     this._requestSync();
   };
@@ -330,10 +345,7 @@ CollabSession.Prototype = function() {
   /* Event handlers
      ============== */
 
-  // overridden
   this.afterDocumentChange = function(change, info) {
-    _super.afterDocumentChange.apply(this, arguments);
-
     // Record local changes into nextCommit
     if (!info.remote) {
       this._recordChange(change);
@@ -367,37 +379,46 @@ CollabSession.Prototype = function() {
      ================ */
 
   this._commit = function(change, info) {
-    this._commitChange(change);
+    var selectionHasChanged = this._commitChange(change);
 
-    // transform local version collaborator selections
-    var collaboratorsChange = {};
-    var collaborators = this.getCollaborators();
-    if (collaborators) {
-      forEach(collaborators, function(collaborator) {
-        var hasChanged = DocumentChange.transformSelection(collaborator.selection, change);
-        if (hasChanged) {
-          collaboratorsChange[collaborator.id] = collaborator;
-        }
-      });
+    var collaboratorsChange = null;
+    forEach(this.getCollaborators(), function(collaborator) {
+      // transform local version of collaborator selection
+      var id = collaborator.collaboratorId;
+      var oldSelection = collaborator.selection;
+      var newSelection = DocumentChange.transformSelection(oldSelection, change);
+      if (oldSelection !== newSelection) {
+        collaboratorsChange = collaboratorsChange || {};
+        collaborator = clone(collaborator);
+        collaborator.selection = newSelection;
+        collaboratorsChange[id] = collaborator;
+      }
+    });
+
+    var update = {
+      change: change
+    };
+    if (selectionHasChanged) {
+      update.selection = this.selection;
     }
-
-    this._triggerUpdateEvent({
-      change: change,
-      selection: this._selectionHasChanged ? this.selection : null,
-      collaborators: collaboratorsChange
-    }, info);
+    if (collaboratorsChange) {
+      update.collaborators = collaboratorsChange;
+    }
+    this._triggerUpdateEvent(update, info);
   };
 
   /*
     Apply a change to the document
   */
   this._applyRemoteChange = function(change) {
-    this.stage._apply(change);
-    this.doc._apply(change);
-    // Only undo+redo history is updated according to the new change
-    this._transformLocalChangeHistory(change);
-    this._transformSelection(change);
-    return change;
+    // console.log('CollabSession: applying remote change');
+    if (change.ops.length > 0) {
+      this.stage._apply(change);
+      this.doc._apply(change);
+      // Only undo+redo history is updated according to the new change
+      this._transformLocalChangeHistory(change);
+      this.selection = this._transformSelection(change);
+    }
   };
 
   /*
@@ -525,13 +546,17 @@ CollabSession.Prototype = function() {
   this._afterDisconnected = function() {
     var oldCollaborators = this.collaborators;
     this.collaborators = {};
-    var collaboratorsChange = {};
-    forEach(oldCollaborators, function(_, collaboratorId) {
-      collaboratorsChange[collaboratorId] = null;
-    });
-    this._triggerUpdateEvent({
-      collaborators: collaboratorsChange
-    });
+    var collaboratorIds = Object.keys(oldCollaborators);
+    if (collaboratorIds.length > 0) {
+      var collaboratorsChange = {};
+      // when this user disconnects we will need to remove all rendered collaborator infos (such as selection)
+      collaboratorIds.forEach(function(collaboratorId) {
+        collaboratorsChange[collaboratorId] = null;
+      });
+      this._triggerUpdateEvent({
+        collaborators: collaboratorsChange
+      });
+    }
     this._connected = false;
     this.emit('disconnected');
   };

@@ -428,6 +428,10 @@ ContainerSelection.Prototype = function() {
     return sels;
   };
 
+  this._clone = function() {
+    return new ContainerSelection(this.containerId, this.startPath, this.startOffset, this.endPath, this.endOffset, this.reverse, this.surfaceId);
+  };
+
   this._range = function(sel) {
     // EXPERIMENTAL: caching the internal address based range
     // as we use it very often.

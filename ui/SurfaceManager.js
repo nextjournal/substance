@@ -1,6 +1,7 @@
 'use strict';
 
 var forEach = require('lodash/forEach');
+var clone = require('lodash/clone');
 var oo = require('../util/oo');
 var warn = require('../util/warn');
 
@@ -8,10 +9,14 @@ function SurfaceManager(documentSession) {
   this.documentSession = documentSession;
 
   this.surfaces = {};
-  this.focusedSurface = null;
-  this._stack = [];
 
-  this.fragments = {};
+  this._state = {
+    focusedSurface: null,
+    // grouped by surfaceId and the by fragment type ('selection' | collaboratorId)
+    fragments: {},
+    selection: null,
+    collaborators: {},
+  };
 
   this.documentSession.on('update', this.onSessionUpdate, this);
   this.documentSession.on('didUpdate', this.onSessionDidUpdate, this);
@@ -44,35 +49,7 @@ SurfaceManager.Prototype = function() {
    * @return {ui/Surface} Surface instance
    */
   this.getFocusedSurface = function() {
-    return this.focusedSurface;
-  };
-
-  /*
-   * Push surface state
-   */
-  this.pushState = function() {
-    // TODO: evaluate if this is necessary anymore
-    var state = {
-      surface: this.focusedSurface,
-      selection: null
-    };
-    if (this.focusedSurface) {
-      state.selection = this.focusedSurface.getSelection();
-    }
-    this.focusedSurface = null;
-    this._stack.push(state);
-  };
-
-  /**
-   * Pop surface state
-   */
-  this.popState = function() {
-    // TODO: evaluate if this is necessary anymore
-    var state = this._stack.pop();
-    if (state && state.surface) {
-      state.surface.setFocused(true);
-      state.surface.setSelection(state.selection);
-    }
+    return this._state.focusedSurface;
   };
 
   /**
@@ -98,59 +75,114 @@ SurfaceManager.Prototype = function() {
     }
   };
 
-
+  // keeps track of selection fragments and collaborator fragments
   this.onSessionUpdate = function(update) {
-    /*
-      TODO
-      We will compute fragments for textProperties (selection fragments)
-      and highlights for nodes
-      then we compute the minimal update for all surfaces and setProps accordingly
-    */
-    var fragments = {};
-    // update old fragments
-    forEach(this.fragments, function(_, key) {
-      fragments[key] = [];
-    });
-    // update changed properties
-    if (update.change) {
-      forEach(update.change.updated, function(key) {
-        fragments[key] = [];
-      });
-    }
+    var _state = this._state;
+
+    var updatedSurfaces = {};
+
     if (update.selection) {
-      _getFragmentsForSelection(fragments, update.selection);
+      _state.focusedSurface = this.surfaces[update.selection.surfaceId];
     }
-    if (update.collaborators) {
-      forEach(update.collaborators, function(collaborator) {
-        _getFragmentsForSelection(fragments, collaborator.selection);
+
+    if (update.change) {
+      forEach(this.surfaces, function(surface, surfaceId) {
+        if (surface._checkForUpdates(update.change)) {
+          updatedSurfaces[surfaceId] = true;
+        }
       });
     }
-    forEach(this.surfaces, function(surface) {
-      surface.extendProps({
-        fragments: fragments
-      });
-    });
 
-    this.fragments = fragments;
-  };
+    var fragments = _state.fragments || {};
 
-  function _getFragmentsForSelection(fragments, sel) {
-    var selFrags = sel.getFragments();
-    selFrags.forEach(function(frag) {
-      var path = frag.path;
-      if (!fragments[path]) {
-        fragments[path] = [];
+    // get fragments for surface with id or create a new hash
+    function _fragmentsForSurface(surfaceId) {
+      // surfaceFrags is a hash, where fragments are stored grouped by owner
+      var surfaceFrags = fragments[surfaceId];
+      if (!surfaceFrags) {
+        surfaceFrags = {};
+        fragments[surfaceId] = surfaceFrags;
       }
-      fragments[path].push(frag);
-    });
-  }
+      return surfaceFrags;
+    }
+
+    // gets selection fragments with collaborator attached to each fragment
+    // as used by TextPropertyComponent
+    function _getFragmentsForSelection(sel, collaborator) {
+      var frags = sel.getFragments();
+      if (collaborator) {
+        frags = frags.map(function(frag) {
+          frag.collaborator = collaborator;
+          return frag;
+        });
+      }
+      return frags;
+    }
+
+    function _updateSelectionFragments(oldSel, newSel, collaborator) {
+      // console.log('SurfaceManager: updating selection fragments', oldSel, newSel, collaborator);
+      var oldSurfaceId = oldSel ? oldSel.surfaceId : null;
+      var newSurfaceId = newSel ? newSel.surfaceId : null;
+      var owner = 'local-user';
+      if (collaborator) {
+        owner = collaborator.collaboratorId;
+      }
+      // clear old fragments
+      if (oldSurfaceId && oldSurfaceId !== newSurfaceId) {
+        _fragmentsForSurface(oldSurfaceId)[owner] = [];
+        updatedSurfaces[oldSurfaceId] = true;
+      }
+      if (newSurfaceId) {
+        _fragmentsForSurface(newSurfaceId)[owner] = _getFragmentsForSelection(newSel, collaborator);
+        updatedSurfaces[newSurfaceId] = true;
+      }
+    }
+
+    if (update.selection) {
+      _updateSelectionFragments(_state.selection, update.selection);
+      _state.selection = update.selection;
+    }
+
+    if (update.collaborators) {
+      forEach(update.collaborators, function(collaborator, collaboratorId) {
+        var oldCollaborator = _state.collaborators[collaboratorId];
+        var oldSel, newSel;
+        if (oldCollaborator){
+          oldSel = oldCollaborator.selection;
+        }
+        if (collaborator){
+          newSel = collaborator.selection;
+        }
+        if (!oldSel || !oldSel.equals(newSel)) {
+          _updateSelectionFragments(oldSel, newSel, collaborator);
+        }
+        _state.collaborators[collaboratorId] = {
+          collaboratorId: collaboratorId,
+          selection: newSel
+        };
+      });
+    }
+
+    updatedSurfaces = Object.keys(updatedSurfaces);
+    // console.log('SurfaceManager: updating surfaces', updatedSurfaces);
+
+    updatedSurfaces.forEach(function(surfaceId) {
+      var surface = this.surfaces[surfaceId];
+      if (surface) {
+        var newFragments = fragments[surfaceId];
+        // console.log('SurfaceManager: providing surface %s with new fragments', newFragments);
+        surface.extendProps({
+          fragments: clone(newFragments)
+        });
+      }
+    }.bind(this));
+  };
 
   this.onSessionDidUpdate = function() {
     /*
       here we will make sure that at the end the DOM selection is rendered
       on the active surface
     */
-    // focusedSUrface.rerenderDOMSelection()
     var sel = this.documentSession.getSelection();
     var surfaceId = sel.surfaceId;
     var surface = this.surfaces[surfaceId];

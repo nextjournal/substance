@@ -29,6 +29,14 @@ Selection.Prototype = function() {
 
   this._isSelection = true;
 
+  this.clone = function() {
+    var newSel = this._clone();
+    if (this._internal.doc) {
+      newSel.attach(this._internal.doc);
+    }
+    return newSel;
+  };
+
   /**
     @returns {Document} The attached document instance
   */
@@ -269,6 +277,7 @@ Selection.NodeFragment = function(nodeId) {
 
   this.type = "node-fragment";
   this.nodeId = nodeId;
+  this.path = [nodeId];
 };
 
 Selection.NodeFragment.Prototype = function() {

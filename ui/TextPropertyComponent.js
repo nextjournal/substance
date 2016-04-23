@@ -77,9 +77,6 @@ TextPropertyComponent.Prototype = function() {
       el = $$('span').addClass('se-'+node.type);
 
       if (node.type === 'cursor') {
-        if (this.props.nocursor) {
-          return null;
-        }
         // Add zero-width character. Since we have a non-empty element, the
         // outline style set on the cursor would not be visible in certain
         // scenarios (e.g. when cursor is at the very beginning of a text.
@@ -161,10 +158,8 @@ TextPropertyComponent.Prototype = function() {
   };
 
   this._finishFragment = function(fragment, context, parentContext) {
-    if (context) {
-      context.attr('data-length', fragment.length);
-      parentContext.append(context);
-    }
+    context.attr('data-length', fragment.length);
+    parentContext.append(context);
   };
 
   this._getDOMCoordinate = function(el, charPos) {

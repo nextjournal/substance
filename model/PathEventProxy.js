@@ -1,6 +1,6 @@
 'use strict';
 
-var each = require('lodash/each');
+var forEach = require('lodash/forEach');
 var isEqual = require('lodash/isEqual');
 var oo = require('../util/oo');
 var warn = require('../util/warn');
@@ -41,9 +41,9 @@ PathEventProxy.Prototype = function() {
       return;
     }
     var listeners = this.listeners;
-    change.updated.forEach(function(_, path) {
-      var scopedListeners = listeners.get(path);
-      each(scopedListeners, function(entry) {
+    forEach(change.updated, function(_, pathStr) {
+      var scopedListeners = listeners.get(pathStr.split(','));
+      forEach(scopedListeners, function(entry) {
         entry.method.call(entry.listener, change, info, doc);
       });
     }.bind(this));

@@ -164,7 +164,7 @@ CollabEngine.Prototype = function() {
       if (collaborator.selection) {
         var sel = Selection.fromJSON(collaborator.selection);
         change = this.deserializeChange(change);
-        DocumentChange.transformSelection(sel, change);
+        sel = DocumentChange.transformSelection(sel, change);
         // Write back the transformed selection to the server state
         this._updateSelection(collaborator.collaboratorId, documentId, sel.toJSON());
       }

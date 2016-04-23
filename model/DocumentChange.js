@@ -157,7 +157,7 @@ DocumentChange.Prototype = function() {
 
     // remove all deleted nodes from updated
     if(Object.keys(deleted).length > 0) {
-      forEach(updated, function(key) {
+      forEach(updated, function(_, key) {
         var nodeId = key.split(',')[0];
         if (deleted[nodeId]) {
           delete updated[key];
@@ -348,7 +348,15 @@ function _transformSelectionInplace(sel, a) {
   return hasChanged;
 }
 
-DocumentChange.transformSelection = _transformSelectionInplace;
+DocumentChange.transformSelection = function(sel, a) {
+  var newSel = sel.clone();
+  var hasChanged = _transformSelectionInplace(newSel, a);
+  if (hasChanged) {
+    return newSel;
+  } else {
+    return sel;
+  }
+};
 
 function _transformCoordinateInplace(coor, op) {
   if (!isEqual(op.path, coor.path)) return false;

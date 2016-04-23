@@ -152,7 +152,6 @@ ContainerEditor.Prototype = function() {
 
   this._handleUpOrDownArrowKey = function (event) {
     event.stopPropagation();
-    var self = this;
     var direction = (event.keyCode === keys.UP) ? 'left' : 'right';
 
     var sel = this.getSelection();
@@ -163,17 +162,16 @@ ContainerEditor.Prototype = function() {
     // Note: we need this timeout so that CE updates the DOM selection first
     // before we try to map it to the model
     window.setTimeout(function() {
-      if (self._isDisposed()) return;
+      if (!this.isMounted()) return;
       var options = {
         direction: direction
       };
-      self._updateModelSelection(options);
-    });
+      this._updateModelSelection(options);
+    }.bind(this));
   };
 
   this._handleLeftOrRightArrowKey = function (event) {
     event.stopPropagation();
-    var self = this;
     var direction = (event.keyCode === keys.LEFT) ? 'left' : 'right';
 
     var sel = this.getSelection();
@@ -182,12 +180,12 @@ ContainerEditor.Prototype = function() {
     }
 
     window.setTimeout(function() {
-      if (self._isDisposed()) return;
+      if (!this.isMounted()) return;
       var options = {
         direction: direction
       };
-      self._updateModelSelection(options);
-    });
+      this._updateModelSelection(options);
+    }.bind(this));
   };
 
 

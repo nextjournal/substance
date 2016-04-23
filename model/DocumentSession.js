@@ -33,13 +33,9 @@ function DocumentSession(doc, options) {
   this.compressor = options.compressor || new DefaultChangeCompressor();
 
   // Note: registering twice:
-  // 1. once to do internal transformations in case changes are coming
+  // to do internal transformations in case changes are coming
   // in from another session -- this must be done as early as possible
-  // 2. to trigger events, such as selection:changed -- this must
-  // be done rather late, so that other listeners such as renderers
-  // have finished their job already.
   this.doc.on('document:changed', this.onDocumentChange, this, {priority: 1000});
-  this.doc.on('document:changed', this.afterDocumentChange, this, {priority: -10});
 }
 
 DocumentSession.Prototype = function() {
@@ -53,8 +49,8 @@ DocumentSession.Prototype = function() {
   };
 
   this.setSelection = function(sel) {
-    var changed = this._setSelection(sel);
-    if(changed) {
+    var selectionHasChanged = this._setSelection(sel);
+    if(selectionHasChanged) {
       this._triggerUpdateEvent({
         selection: sel
       });
@@ -102,10 +98,13 @@ DocumentSession.Prototype = function() {
       }
       this.selection = sel;
       to.push(change.invert());
-      this._triggerUpdateEvent({
-        change: change,
-        selection: !oldSel.equals(sel) ? sel: null
-      }, { 'replay': true });
+      var update = {
+        change: change
+      };
+      if (!oldSel.equals(sel)) {
+        update.selection = sel;
+      }
+      this._triggerUpdateEvent(update, { replay: true });
     } else {
       warn('No change can be %s.', (which === 'undo'? 'undone':'redone'));
     }
@@ -164,16 +163,16 @@ DocumentSession.Prototype = function() {
     if (info && info.session !== this) {
       this.stage._apply(change);
       this._transformLocalChangeHistory(change, info);
-      this._transformSelection(change, info);
-    }
-  };
-
-  this.afterDocumentChange = function() {
-    // DEPRECATED: we want to get rid of the extra selection event here
-    if (this._selectionHasChanged) {
-      // console.log('selection has changed', this.__id__);
-      this._selectionHasChanged = false;
-      this.emit('selection:changed', this.selection, this);
+      var oldSelection = this.selection;
+      var newSelection = this._transformSelection(change, info);
+      this.selection = newSelection;
+      var update = {
+        change: change
+      };
+      if (oldSelection !== newSelection) {
+        update.selection = newSelection;
+      }
+      // this._triggerUpdateEvent(update, info);
     }
   };
 
@@ -204,23 +203,26 @@ DocumentSession.Prototype = function() {
   };
 
   this._transformSelection = function(change) {
-    // console.log('Transforming selection...', this.__id__);
-    // Transform the selection
-    this._selectionHasChanged =
-      DocumentChange.transformSelection(this.selection, change);
+    var oldSelection = this.selection;
+    var newSelection = DocumentChange.transformSelection(oldSelection, change);
+    // console.log('Transformed selection', change, oldSelection.toString(), newSelection.toString());
+    return newSelection;
   };
 
   this._commit = function(change, info) {
-    this._commitChange(change);
-    this._triggerUpdateEvent({
-      change: change,
-      selection: this._selectionHasChanged ? this.selection : null
-    }, info);
+    var selectionHasChanged = this._commitChange(change);
+    var update = {
+      change: change
+    };
+    if (selectionHasChanged) {
+      update.selection = this.selection;
+    }
+    this._triggerUpdateEvent(update, info);
   };
 
   this._commitChange = function(change) {
     change.timestamp = Date.now();
-
+    // update document model
     this.doc._apply(change);
 
     var currentChange = this._currentChange;
@@ -240,30 +242,37 @@ DocumentSession.Prototype = function() {
     // discard old redo history
     this.undoneChanges = [];
 
-    if (change.after.selection._isSelection) {
-      this.selection = change.after.selection;
-      // HACK injecting the surfaceId here...
-      // TODO: we should find out where the best place is to do this
-      if (this.selection && !this.selection.isNull() && change.after.surfaceId) {
-        this.selection.surfaceId = change.after.surfaceId;
-      }
-      this._selectionHasChanged = true;
+    var oldSelection = this.selection || Selection.nullSelection;
+    var newSelection = change.after.selection || Selection.nullSelection;
+    var selectionHasChanged = !oldSelection.equals(newSelection);
+    // HACK injecting the surfaceId here...
+    // TODO: we should find out where the best place is to do this
+    if (!newSelection.isNull()) {
+      newSelection.surfaceId = change.after.surfaceId;
     }
+    this.selection = newSelection;
+    return selectionHasChanged;
   };
 
   this._triggerUpdateEvent = function(update, info) {
     info = info || {};
     info.session = this;
-    if (update.documentChange) {
+    if (update.change && update.change.ops.length > 0) {
       // TODO: I would like to wrap this with a try catch.
       // however, debugging gets inconvenient as caught exceptions don't trigger a breakpoint
       // by default, and other libraries such as jquery throw noisily.
       this.doc._notifyChangeListeners(update.change, info);
+    } else {
+      // HACK: removing this from the update when it is NOP
+      // this way, we only need to do this check here
+      delete update.change;
     }
-    // Experimental: introducing slots to better control when things get
-    // updated, and things have been rendered/updated
-    this.emit('update', update, info);
-    this.emit('didUpdate', update, info);
+    if (Object.keys(update).length > 0) {
+      // slots to have more control about when things get
+      // updated, and things have been rendered/updated
+      this.emit('update', update, info);
+      this.emit('didUpdate', update, info);
+    }
   };
 };
 

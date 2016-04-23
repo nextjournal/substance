@@ -459,15 +459,6 @@ Controller.Prototype = function() {
 */
 
 /**
-  Emitted when the active selection has changed, e.g. through cursor movement.
-  Transports `sel` a DocumentSelection that can be expected but also the
-  surface in which the selection change happened.
-
-  @event ui/Controller@selection:changed
-  @param {ui/Command} cmd the command instance
-*/
-
-/**
   Emitted when a save workflow has been completed successfully.
 
   @event ui/Controller@document:saved

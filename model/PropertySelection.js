@@ -383,6 +383,11 @@ PropertySelection.Prototype = function() {
     this._internal.fragments = fragments;
     return fragments;
   };
+
+  this._clone = function() {
+    return new PropertySelection(this.path, this.startOffset, this.endOffset, this.reverse, this.surfaceId);
+  };
+
 };
 
 Selection.extend(PropertySelection);
