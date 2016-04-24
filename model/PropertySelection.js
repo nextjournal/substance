@@ -150,6 +150,10 @@ PropertySelection.Prototype = function() {
     return this.path;
   };
 
+  this.getNodeId = function() {
+    return this.path[0];
+  };
+
   /**
     Get start character position.
 

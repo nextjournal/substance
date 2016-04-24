@@ -61,8 +61,6 @@ function ContainerEditor() {
   }
   this.editingBehavior = new EditingBehavior();
 
-  this._nestedEditors = {};
-
   // derive internal state variables
   this.willReceiveProps(this.props);
 }

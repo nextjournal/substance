@@ -4,11 +4,19 @@ var error = require('../util/error');
 var Coordinate = require('../model/Coordinate');
 var Component = require('./Component');
 
+// It is not a good idea to derive the isolated node component's state from the
+// selection. Needing a selectin when inside an IsolatedNode, makes it impossible to enable
+// the contenteditable on the fly (does not work when clicking on an existing selection)
+// Instead we should leave to the
+
 function IsolatedNodeComponent() {
   IsolatedNodeComponent.super.apply(this, arguments);
 
   this.name = this.props.node.id;
   this._id = _createId(this);
+  this._state = {
+    selectionFragment: null
+  };
 }
 
 function _createId(isolatedNodeComp) {
@@ -32,21 +40,18 @@ IsolatedNodeComponent.Prototype = function() {
     };
   };
 
-  this.willReceiveProps = function(nextProps) {
-    this.setState({
-      mode: nextProps.mode
-    });
+  this.didMount = function() {
+    _super.didMount.call(this);
+
+    var docSession = this.context.documentSession;
+    docSession.on('update', this.onSessionUpdate, this);
   };
 
-  this.didUpdate = function() {
-    _super.didUpdate.apply(this, arguments);
+  this.dispose = function() {
+    _super.dispose.call(this);
 
-    // when this node is focused, we enable the controls of the content element
-    if (this.state.mode === 'focused') {
-      this.activate();
-    } else {
-      this.deactivate();
-    }
+    var docSession = this.context.documentSession;
+    docSession.off(this);
   };
 
   this.render = function($$) {
@@ -55,17 +60,20 @@ IsolatedNodeComponent.Prototype = function() {
 
     var node = this.props.node;
     el.addClass('sc-isolated-node')
-      .attr("data-id", node.id)
-      .on('mousedown', this.onMousedown);
+      .attr("data-id", node.id);
 
     if (this.state.mode) {
       el.addClass('sm-'+this.state.mode);
     }
 
+    el.on('mousedown', this.onMousedown);
+
     el.append(
       $$('div').addClass('se-isolated-node-boundary').addClass('sm-before').ref('before')
         // zero-width character
-        .append("\uFEFF")
+        // .append("\uFEFF")
+        // NOTE: better use a regular character otherwise Edge has problems
+        .append("{")
     );
 
     var container = $$('div').addClass('se-container')
@@ -76,7 +84,9 @@ IsolatedNodeComponent.Prototype = function() {
     el.append(
       $$('div').addClass('se-isolated-node-boundary').addClass('sm-after').ref('after')
         // zero-width character
-        .append("\uFEFF")
+        // .append("\uFEFF")
+        // NOTE: better use a regular character otherwise Edge has problems
+        .append("}")
     );
 
     return el;
@@ -97,22 +107,6 @@ IsolatedNodeComponent.Prototype = function() {
     }
   };
 
-  this.activate = function() {
-    if (this.refs.content.props.disabled) {
-      this.refs.content.extendProps({
-        disabled: false
-      });
-    }
-  };
-
-  this.deactivate = function() {
-    if (!this.refs.content.props.disabled) {
-      this.refs.content.extendProps({
-        disabled: true
-      });
-    }
-  };
-
   this.getId = function() {
     return this._id;
   };
@@ -121,16 +115,55 @@ IsolatedNodeComponent.Prototype = function() {
     return this.context.surface;
   };
 
+  this.onSessionUpdate = function(update) {
+    if (update.selection) {
+      // TODO: we need to change the DocumentSession update API
+      // as it is important to know the old and new value
+      var newSel = update.selection;
+      var surfaceId = newSel.surfaceId;
+
+      if (this.state.mode === 'focused') {
+        if (surfaceId && !surfaceId.startsWith(this._id)) {
+          this.setState({
+            mode: null
+          });
+          return;
+        }
+      } else {
+        var nodeId = this.props.node.id;
+        var nodeIsSelected = (
+          (surfaceId === this.getSurfaceParent().getId()) && (
+            // (newSel.isNodeSelection() && newSel.getNodeId() === nodeId) ||
+            (newSel.isContainerSelection() && newSel.containsNodeFragment(nodeId))
+          )
+        );
+        // TODO: probably we need to dispatch the state to descendants
+        if (!this.state.mode && nodeIsSelected) {
+          this.setState({
+            mode: 'selected'
+          });
+        } else if (this.state.mode === 'selected' && !nodeIsSelected) {
+          this.setState({
+            mode: null
+          });
+        }
+      }
+    }
+  };
+
   this.onMousedown = function(event) {
-    // console.log('IsolatedNode %s: mousedown', this.props.node.id);
     event.preventDefault();
     event.stopPropagation();
+
     switch (this.state.mode) {
+      case 'selected':
+        this.setState({ mode: 'focused' });
+        break;
       case 'focused':
         break;
       default:
         this._selectNode();
-        break;
+        this.setState({ mode: 'focused' });
     }
   };
 
@@ -148,6 +181,7 @@ IsolatedNodeComponent.Prototype = function() {
     }));
     this.el.focus();
   };
+
 };
 
 Component.extend(IsolatedNodeComponent);

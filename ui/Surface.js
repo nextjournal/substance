@@ -2,7 +2,6 @@
 
 var each = require('lodash/each');
 var extend = require('lodash/extend');
-var isEqual = require('lodash/isEqual');
 var error = require('../util/error');
 var info = require('../util/info');
 var inBrowser = require('../util/inBrowser');
@@ -64,7 +63,6 @@ function Surface() {
   }
 
   // set when editing is enabled
-  this.enabled = true;
   this.undoEnabled = true;
   this.textTypes = this.props.textTypes;
   this.commandRegistry = _createCommandRegistry(this, this.props.commands);
@@ -164,34 +162,35 @@ Surface.Prototype = function() {
       .attr('tabindex', 2)
       .attr('contenteditable', false);
 
-    if (this.isEditable()) {
-      // Keyboard Events
-      el.on('keydown', this.onKeyDown);
-      // OSX specific handling of dead-keys
-      if (!platform.isIE) {
-        el.on('compositionstart', this.onCompositionStart);
+    if (!this.isDisabled()) {
+      if (this.isEditable()) {
+        // Keyboard Events
+        el.on('keydown', this.onKeyDown);
+        // OSX specific handling of dead-keys
+        if (!platform.isIE) {
+          el.on('compositionstart', this.onCompositionStart);
+        }
+        // Note: TextEvent in Chrome/Webkit is the easiest for us
+        // as it contains the actual inserted string.
+        // Though, it is not available in FF and not working properly in IE
+        // where we fall back to a ContentEditable backed implementation.
+        if (window.TextEvent && !platform.isIE) {
+          el.on('textInput', this.onTextInput);
+        } else {
+          el.on('keypress', this.onTextInputShim);
+        }
       }
-      // Note: TextEvent in Chrome/Webkit is the easiest for us
-      // as it contains the actual inserted string.
-      // Though, it is not available in FF and not working properly in IE
-      // where we fall back to a ContentEditable backed implementation.
-      if (window.TextEvent && !platform.isIE) {
-        el.on('textInput', this.onTextInput);
-      } else {
-        el.on('keypress', this.onTextInputShim);
+      if (!this.isReadonly()) {
+        // Mouse Events
+        el.on('mousedown', this.onMouseDown);
+        // disable drag'n'drop
+        el.on('dragstart', this.onDragStart);
+        // we will react on this to render a custom selection
+        el.on('focus', this.onNativeFocus);
+        el.on('blur', this.onNativeBlur);
+        // activate the clipboard
+        this.clipboard.attach(el);
       }
-    }
-
-    if (!this.isReadonly()) {
-      // Mouse Events
-      el.on('mousedown', this.onMouseDown);
-      // disable drag'n'drop
-      el.on('dragstart', this.onDragStart);
-      // we will react on this to render a custom selection
-      el.on('focus', this.onNativeFocus);
-      el.on('blur', this.onNativeBlur);
-      // activate the clipboard
-      this.clipboard.attach(el);
     }
     return el;
   };
@@ -220,6 +219,10 @@ Surface.Prototype = function() {
 
   this.getId = function() {
     return this._surfaceId;
+  };
+
+  this.isDisabled = function() {
+    return this.props.disabled;
   };
 
   this.isEditable = function() {
@@ -271,20 +274,8 @@ Surface.Prototype = function() {
     return this.documentSession;
   };
 
-  this.enable = function() {
-    // As opposed to a ContainerEditor, a regular Surface
-    // is not a ContentEditable -- but every contained TextProperty
-    info('TODO: enable all contained TextProperties');
-    this.enabled = true;
-  };
-
-  this.disable = function() {
-    info('TODO: disable all contained TextProperties');
-    this.enabled = false;
-  };
-
   this.isEnabled = function() {
-    return this.enabled;
+    return !this.state.disabled;
   };
 
   this.isContainerEditor = function() {
@@ -638,7 +629,8 @@ Surface.Prototype = function() {
     if ( event.which !== 1 ) {
       return;
     }
-    // console.log('MouseDown on Surface %s', this.__id__);
+    // HACK: clearing this, otherwise we have troubles with the old selection in the way for the next selection
+    this.domSelection.clear();
     // 'mouseDown' is triggered before 'focus' so we tell
     // our focus handler that we are already dealing with it
     // The opposite situation, when the surface gets focused event.g. using keyboard
@@ -653,6 +645,7 @@ Surface.Prototype = function() {
 
     // Bind mouseup to the whole document in case of dragging out of the surface
     if (this.documentEl) {
+      // TODO: we should handle mouse up only if we started a drag (and the selection has really changed)
       this.documentEl.on('mouseup', this.onMouseUp, this, { once: true });
     }
   };
@@ -727,22 +720,19 @@ Surface.Prototype = function() {
   this._deriveProps = function(nextProps) {
     // console.log('deriving props', nextProps, window.clientId);
     var _state = this._state;
-
     var oldFragments = this.props.fragments;
     if (oldFragments) {
       _forEachFragment(oldFragments, function(frag) {
         var key = frag.path.toString();
-        if (this._textProperties[key]) {
+        if (this._getComponentForKey(key)) {
           _markAsDirty(_state, key);
         }
       }.bind(this));
     }
-
     var nextFragments = nextProps.fragments;
     if (nextFragments) {
       this._deriveFragments(nextFragments);
     }
-
     // console.log('derived props', _state, window.clientId);
   };
 
@@ -750,14 +740,13 @@ Surface.Prototype = function() {
     // console.log('deriving fragments', newFragments, window.clientId);
     var _state = this._state;
     _state.cursorFragment = null;
-
     // group fragments by property
     var fragments = {};
     _forEachFragment(newFragments, function(frag, owner) {
       var key = frag.path.toString();
       frag.key = key;
       // skip frags which are not rendered here
-      if (!this._textProperties[key]) return;
+      if (!this._getComponentForKey(key)) return;
       // extract the cursor fragment for special treatment (not show when focused)
       if (frag.type === 'cursor' && owner === 'local-user') {
         _state.cursorFragment = frag;
@@ -788,7 +777,7 @@ Surface.Prototype = function() {
   this._checkForUpdates = function(change) {
     var _state = this._state;
     Object.keys(change.updated).forEach(function(key) {
-      if (this._textProperties[key]) {
+      if (this._getComponentForKey(key)) {
         _markAsDirty(_state, key);
       }
     }.bind(this));
@@ -818,9 +807,16 @@ Surface.Prototype = function() {
     if (cursorFragment && cursorFragment.key === key) {
       frags = frags.concat([cursorFragment]);
     }
-    this._textProperties[key].extendProps({
-      fragments: frags
-    });
+    var comp = this._getComponentForKey(key);
+    if (comp) {
+      comp.extendProps({
+        fragments: frags
+      });
+    }
+  };
+
+  this._getComponentForKey = function(key) {
+    return this._textProperties[key];
   };
 
   this._handleLeftOrRightArrowKey = function (event) {
@@ -993,12 +989,6 @@ Surface.Prototype = function() {
     var path = textPropertyComponent.getPath();
     if (this._textProperties[path] === textPropertyComponent) {
       delete this._textProperties[path];
-      // TODO: what do we need this for?
-      each(this._annotations, function(_path, id) {
-        if (isEqual(path, _path)) {
-          delete this._annotations[id];
-        }
-      }.bind(this));
     }
   };
 

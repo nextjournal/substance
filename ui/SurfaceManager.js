@@ -191,26 +191,6 @@ SurfaceManager.Prototype = function() {
     }
   };
 
-  // this.onSessionDidUpdate = function() {
-  //   // console.log('Rerendering DOM selection after document change.', this.__id__);
-  //   var sel = this.getSelection();
-  //   if (sel.surfaceId === this.getName()) {
-  //     if (inBrowser &&
-  //         // HACK: in our examples we are hosting two instances of one editor
-  //         // which reside in IFrames. To avoid competing DOM selection updates
-  //         // we update only the one which as a focused document.
-  //         (!Surface.MULTIPLE_APPS_ON_PAGE || window.document.hasFocus())) {
-  //       // HACK: under FF we must make sure that the contenteditable is
-  //       // focused.
-  //       if (!this._internalState.hasNativeFocus) {
-  //         this.skipNextFocusEvent = true;
-  //         this.el.focus();
-  //       }
-  //       this.rerenderDomSelection();
-  //     }
-  //   }
-  // };
-
 };
 
 oo.initClass(SurfaceManager);

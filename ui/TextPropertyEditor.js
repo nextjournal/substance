@@ -49,7 +49,8 @@ TextPropertyEditor.Prototype = function() {
     if (!this.props.disabled) {
       el.addClass('enabled');
     }
-    if (this.isEditable() && !this.props.disabled) {
+    // if (this.isEditable() && !this.props.disabled) {
+    if (!this.props.disabled) {
       el.attr('contenteditable', true);
     }
     el.append(
