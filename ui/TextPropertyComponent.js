@@ -98,12 +98,13 @@ TextPropertyComponent.Prototype = function() {
           'data-inline':'1',
           'data-length': 1
         });
+        el.ref(id);
       }
       // Adding refs here, enables preservative rerendering
       // TODO: while this solves problems with rerendering inline nodes
       // with external content, it decreases the overall performance too much.
       // We should optimize the component first before we can enable this.
-      if (this.context.config && this.context.config.preservativeTextPropertyRendering) {
+      else if (this.context.config && this.context.config.preservativeTextPropertyRendering) {
         el.ref(id + '@' + fragment.counter);
       }
     }
