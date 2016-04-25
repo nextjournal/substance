@@ -2,9 +2,14 @@
 
   position: relative;
 
+  > .se-container {
+    display: inline-block;
+  }
+
   > .se-isolated-node-boundary {
-    display: block;
+    display: inline-block;
     opacity: 0;
+    width: 100%;
 /*
     -moz-user-select: none;
     -khtml-user-select: none;

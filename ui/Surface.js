@@ -629,19 +629,26 @@ Surface.Prototype = function() {
     if ( event.which !== 1 ) {
       return;
     }
-    // HACK: clearing this, otherwise we have troubles with the old selection in the way for the next selection
-    this.domSelection.clear();
     // 'mouseDown' is triggered before 'focus' so we tell
     // our focus handler that we are already dealing with it
     // The opposite situation, when the surface gets focused event.g. using keyboard
     // then the handler needs to kick in and recover a persisted selection or such
     this.skipNextFocusEvent = true;
-    setTimeout(function() {
-      if (this.domSelection) {
-        var sel = this.domSelection.getSelection();
-        this.setSelection(sel);
-      }
-    }.bind(this));
+
+    // UX-wise, the proper way is to apply the selection on mousedown, and if a drag is started (range selection)
+    // we could maybe map the selection during the drag, but finally once after mouse is released.
+    // TODO: this needs to be solved properly; be aware of browser incompatibilities
+    // HACK: not working in IE which then does not allow a range selection anymore
+    if (!platform.isIE) {
+      // HACK: clearing this, otherwise we have troubles with the old selection in the way for the next selection
+      this.domSelection.clear();
+      setTimeout(function() {
+        if (this.domSelection) {
+          var sel = this.domSelection.getSelection();
+          this.setSelection(sel);
+        }
+      }.bind(this));
+    }
 
     // Bind mouseup to the whole document in case of dragging out of the surface
     if (this.documentEl) {

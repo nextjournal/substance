@@ -66,7 +66,14 @@ IsolatedNodeComponent.Prototype = function() {
       el.addClass('sm-'+this.state.mode);
     }
 
-    el.on('mousedown', this.onMousedown);
+    el.on('mousedown', this.onMousedown)
+    // shadowing handlers of the parent surface
+    el.on('keydown', this._stopPropagation)
+      .on('keypress', this._stopPropagation)
+      .on('keyup', this._stopPropagation)
+      .on('compositionstart', this._stopPropagation)
+      .on('textInput', this._stopPropagation);
+
 
     el.append(
       $$('div').addClass('se-isolated-node-boundary').addClass('sm-before').ref('before')
@@ -152,9 +159,8 @@ IsolatedNodeComponent.Prototype = function() {
   };
 
   this.onMousedown = function(event) {
-    event.preventDefault();
+    console.log('IsolatedNodeComponent.onMousedown');
     event.stopPropagation();
-
     switch (this.state.mode) {
       case 'selected':
         this.setState({ mode: 'focused' });
@@ -165,6 +171,10 @@ IsolatedNodeComponent.Prototype = function() {
         this._selectNode();
         this.setState({ mode: 'focused' });
     }
+  };
+
+  this._stopPropagation = function(event) {
+    event.stopPropagation();
   };
 
   this._selectNode = function() {
