@@ -49,7 +49,7 @@ DOMSelection.Prototype = function() {
     @param {model/Selection} sel
   */
   this.setSelection = function(sel) {
-    // console.log('### renderSelection', sel.toString());
+    // console.log('### DOMSelection: setting selection', sel.toString());
     var wSel = window.getSelection();
     if (sel.isNull()) {
       this.clear();
@@ -106,7 +106,7 @@ DOMSelection.Prototype = function() {
         wSel.addRange(wRange);
       }
     }
-    // console.log('DOMSelection.setSelection()', 'anchorNode:', wSel.anchorNode, 'anchorOffset:', wSel.anchorOffset, 'focusNode:', wSel.focusNode, 'focusOffset:', wSel.focusOffset, 'collapsed:', wSel.collapsed);
+    // console.log('DOMSelection: mapped selection to DOM', 'anchorNode:', wSel.anchorNode, 'anchorOffset:', wSel.anchorOffset, 'focusNode:', wSel.focusNode, 'focusOffset:', wSel.focusOffset, 'collapsed:', wSel.collapsed);
   };
 
   this._getDOMCoordinate = function(coor) {
