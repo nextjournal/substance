@@ -66,7 +66,7 @@ IsolatedNodeComponent.Prototype = function() {
       el.addClass('sm-'+this.state.mode);
     }
 
-    el.on('mousedown', this.onMousedown)
+    el.on('mousedown', this.onMousedown);
     // shadowing handlers of the parent surface
     el.on('keydown', this._stopPropagation)
       .on('keypress', this._stopPropagation)
@@ -86,6 +86,11 @@ IsolatedNodeComponent.Prototype = function() {
     var container = $$('div').addClass('se-container')
       .attr('contenteditable', false)
       .append(this.renderContent($$));
+    // TODO: there are some content implementation which would work better without that
+    if (this._isDisabled()) {
+      container.addClass('sm-disabled');
+      container.append($$('div').addClass('se-blocker'));
+    }
     el.append(container);
 
     el.append(
@@ -107,11 +112,16 @@ IsolatedNodeComponent.Prototype = function() {
       error('Could not resolve a component for type: ' + node.type);
       return $$('div');
     } else {
-      return $$(ComponentClass, {
+      var props = {
         node: node,
-        disabled: this.state.mode !== 'focused'
-      }).ref('content');
+        disabled: this._isDisabled()
+      };
+      return $$(ComponentClass, props).ref('content');
     }
+  };
+
+  this._isDisabled = function() {
+    return this.state.mode === 'selected' || !this.state.mode;
   };
 
   this.getId = function() {
@@ -159,17 +169,19 @@ IsolatedNodeComponent.Prototype = function() {
   };
 
   this.onMousedown = function(event) {
-    console.log('IsolatedNodeComponent.onMousedown');
+    // console.log('IsolatedNodeComponent.onMousedown');
     event.stopPropagation();
     switch (this.state.mode) {
       case 'selected':
+        event.preventDefault();
         this.setState({ mode: 'focused' });
         break;
       case 'focused':
         break;
       default:
+        event.preventDefault();
         this._selectNode();
-        this.setState({ mode: 'focused' });
+        this.setState({ mode: 'selected' });
     }
   };
 
@@ -220,12 +232,12 @@ IsolatedNodeComponent.getDOMCoordinate = function(comp, coor) {
   var domCoor;
   if (coor.offset === 0) {
     domCoor = {
-      container: comp.refs.before.getNativeElement().firstChild,
+      container: comp.refs.before.getNativeElement(),
       offset: 0
     };
   } else {
     domCoor = {
-      container: comp.refs.after.getNativeElement().firstChild,
+      container: comp.refs.after.getNativeElement(),
       offset: 1
     };
   }
