@@ -6,6 +6,7 @@ var last = require('lodash/last');
 var uuid = require('../util/uuid');
 var keys = require('../util/keys');
 var warn = require('../util/warn');
+var platform = require('../util/platform');
 var EditingBehavior = require('../model/EditingBehavior');
 var breakNode = require('../model/transform/breakNode');
 var insertNode = require('../model/transform/insertNode');
@@ -151,38 +152,41 @@ ContainerEditor.Prototype = function() {
   this._handleUpOrDownArrowKey = function (event) {
     event.stopPropagation();
     var direction = (event.keyCode === keys.UP) ? 'left' : 'right';
-
     var sel = this.getSelection();
-    if (sel.isNodeSelection()) {
+
+    // Note: this collapses the selection, just to let ContentEditable continue doing a cursor move
+    if (sel.isNodeSelection() && !event.shiftKey) {
       this.domSelection.collapse(direction);
     }
-
+    // HACK: ATM we have a cursor behavior in Chrome and FF when collapsing a selection
+    // e.g. have a selection from up-to-down and the press up, seems to move the focus
+    else if (!platform.isIE && !sel.isCollapsed() && !event.shiftKey) {
+      var doc = this.getDocument();
+      if (direction === 'left') {
+        this.setSelection(doc.createSelection(sel.start.path, sel.start.offset));
+      } else {
+        this.setSelection(doc.createSelection(sel.end.path, sel.end.offset));
+      }
+    }
     // Note: we need this timeout so that CE updates the DOM selection first
     // before we try to map it to the model
     window.setTimeout(function() {
       if (!this.isMounted()) return;
-      var options = {
-        direction: direction
-      };
-      this._updateModelSelection(options);
+      this._updateModelSelection({ direction: direction });
     }.bind(this));
   };
 
   this._handleLeftOrRightArrowKey = function (event) {
     event.stopPropagation();
     var direction = (event.keyCode === keys.LEFT) ? 'left' : 'right';
-
     var sel = this.getSelection();
-    if (sel.isNodeSelection()) {
+    // Note: collapsing the selection and let ContentEditable still continue doing a cursor move
+    if (sel.isNodeSelection() && !event.shiftKey) {
       this.domSelection.collapse(direction);
     }
-
     window.setTimeout(function() {
       if (!this.isMounted()) return;
-      var options = {
-        direction: direction
-      };
-      this._updateModelSelection(options);
+      this._updateModelSelection({ direction: direction });
     }.bind(this));
   };
 
