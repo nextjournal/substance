@@ -79,10 +79,14 @@ RenderingEngine.Prototype = function() {
       // as it has already been cleared that a rerender is necessary
       if (forceCapture) {
         needRerender = true;
+        vel.__oldState__ = comp.state;
+        vel.__oldProps__ = comp.props;
       } else {
         // NOTE: don't ask if shouldRerender if no element is there yet
         needRerender = !comp.el || comp.shouldRerender(vel.props);
         comp.__htmlConfig__ = vel._copyHTMLConfig();
+        vel.__oldState__ = comp.state;
+        vel.__oldProps__ = comp.props;
         // updates prop triggering willReceiveProps
         comp._setProps(vel.props);
         if (!vel.__isNew__) {
@@ -281,7 +285,7 @@ RenderingEngine.Prototype = function() {
         vel._content.children.forEach(_triggerUpdate);
       }
       if (vel.__isUpdated__) {
-        vel._comp.didUpdate();
+        vel._comp.didUpdate(vel.__oldProps__, vel.__oldState__);
       }
     } else if (vel._isVirtualHTMLElement) {
       vel.children.forEach(_triggerUpdate);

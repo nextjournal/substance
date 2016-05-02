@@ -187,10 +187,12 @@ Component.Prototype = function() {
    * Call this to manually trigger a rerender.
    */
   this.rerender = function() {
+    var oldProps = this.props;
+    var oldState = this.state;
     this._render();
     // when this component is not mounted still trigger didUpdate()
     if (!this.isMounted()) {
-      this.didUpdate();
+      this.didUpdate(oldProps, oldState);
     }
   };
 
@@ -363,6 +365,8 @@ Component.Prototype = function() {
     Usually this is used by the component itself.
   */
   this.setState = function(newState) {
+    var oldProps = this.props;
+    var oldState = this.state;
     // Note: while setting props it is allowed to call this.setState()
     // which will not lead to an extra rerender
     var needRerender = !this.__isSettingProps__ &&
@@ -374,7 +378,7 @@ Component.Prototype = function() {
     if (needRerender) {
       this.rerender();
     } else if (!this.__isSettingProps__) {
-      this.didUpdate();
+      this.didUpdate(oldProps, oldState);
     }
   };
 
@@ -407,12 +411,14 @@ Component.Prototype = function() {
     @param {object} an object with properties
   */
   this.setProps = function(newProps) {
+    var oldProps = this.props;
+    var oldState = this.state;
     var needRerender = this.shouldRerender(newProps, this.state);
     this._setProps(newProps);
     if (needRerender) {
       this.rerender();
     } else {
-      this.didUpdate();
+      this.didUpdate(oldProps, oldState);
     }
   };
 
