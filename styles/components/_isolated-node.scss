@@ -43,11 +43,21 @@
 
 }
 
-.sc-isolated-node > .se-container.sm-disabled ::selection {
+.sc-isolated-node > .se-container.sm-disabled ::selection,
+.sc-isolated-node > .se-container .sg-hide-selection ::selection
+{
   background: none;
 }
 
+// .sc-isolated-node > .se-container .sg-hide-selection ::selection {
+//   background: none;
+// }
+
 .sc-isolated-node > .se-container.sm-disabled ::-moz-selection {
+  background: none;
+}
+
+.sc-isolated-node > .se-container .sg-hide-selection ::-moz-selection {
   background: none;
 }
 

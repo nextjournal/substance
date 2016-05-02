@@ -1,8 +1,11 @@
 'use strict';
 
 var error = require('../util/error');
+var keys = require('../util/keys');
+var inBrowser = require('../util/inBrowser');
 var Coordinate = require('../model/Coordinate');
 var Component = require('./Component');
+var DefaultDOMElement = require('./DefaultDOMElement');
 
 // It is not a good idea to derive the isolated node component's state from the
 // selection. Needing a selectin when inside an IsolatedNode, makes it impossible to enable
@@ -45,6 +48,17 @@ IsolatedNodeComponent.Prototype = function() {
 
     var docSession = this.context.documentSession;
     docSession.on('update', this.onSessionUpdate, this);
+
+    this._registerGlobalDOMHandlers();
+  };
+
+  this.willReceiveProps = function() {
+    _super.willReceiveProps.apply(this, arguments);
+    this._unregisterGlobalDOMHandlers();
+  };
+
+  this.didUpdate = function() {
+    this._registerGlobalDOMHandlers();
   };
 
   this.dispose = function() {
@@ -52,6 +66,8 @@ IsolatedNodeComponent.Prototype = function() {
 
     var docSession = this.context.documentSession;
     docSession.off(this);
+
+    this._unregisterGlobalDOMHandlers();
   };
 
   this.render = function($$) {
@@ -68,7 +84,7 @@ IsolatedNodeComponent.Prototype = function() {
 
     el.on('mousedown', this.onMousedown);
     // shadowing handlers of the parent surface
-    el.on('keydown', this._stopPropagation)
+    el.on('keydown', this.onKeydown)
       .on('keypress', this._stopPropagation)
       .on('keyup', this._stopPropagation)
       .on('compositionstart', this._stopPropagation)
@@ -117,6 +133,20 @@ IsolatedNodeComponent.Prototype = function() {
         disabled: this._isDisabled()
       };
       return $$(ComponentClass, props).ref('content');
+    }
+  };
+
+  this._registerGlobalDOMHandlers = function() {
+    if (inBrowser && this.state.mode === 'focused') {
+      var documentEl = DefaultDOMElement.wrapNativeElement(window.document);
+      documentEl.on('keydown', this.onKeydown, this);
+    }
+  };
+
+  this._unregisterGlobalDOMHandlers = function() {
+    if (inBrowser) {
+      var documentEl = DefaultDOMElement.wrapNativeElement(window.document);
+      documentEl.off(this, 'keydown');
     }
   };
 
@@ -184,6 +214,20 @@ IsolatedNodeComponent.Prototype = function() {
         this.setState({ mode: 'selected' });
     }
   };
+
+  this.onKeydown = function(event) {
+    event.stopPropagation();
+    console.log('####', event.keyCode, event.metaKey, event.ctrlKey, event.shiftKey);
+    // TODO: while this works when we have an isolated node with input or CE,
+    // there is no built-in way of receiving key events in other cases
+    // We need a global event listener for keyboard events which dispatches to the current isolated node
+    if (event.keyCode === keys.ESCAPE && this.state.mode === 'focused') {
+      event.preventDefault();
+      this._selectNode();
+      this.setState({ mode: 'selected' });
+    }
+  };
+
 
   this._stopPropagation = function(event) {
     event.stopPropagation();
