@@ -98,7 +98,8 @@ TextPropertyComponent.Prototype = function() {
           'data-inline':'1',
           'data-length': 1
         });
-        el.ref(id);
+        // FIXME: enabling this reveals a bug in RenderEngine with reusing a component but reattached to a new parent.
+        // el.ref(id);
       }
       // Adding refs here, enables preservative rerendering
       // TODO: while this solves problems with rerendering inline nodes

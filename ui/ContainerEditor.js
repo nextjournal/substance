@@ -182,14 +182,16 @@ ContainerEditor.Prototype = function() {
     var sel = this.getSelection();
     // Note: collapsing the selection and let ContentEditable still continue doing a cursor move
     if (sel.isNodeSelection() && !event.shiftKey) {
-      this.domSelection.collapse(direction);
+      console.log('#### Collapsing node selection', direction);
+      event.preventDefault();
+      this.setSelection(sel.collapse(direction));
+      return;
     }
     window.setTimeout(function() {
       if (!this.isMounted()) return;
       this._updateModelSelection({ direction: direction });
     }.bind(this));
   };
-
 
   // Used by Clipboard
   this.isContainerEditor = function() {
@@ -342,6 +344,7 @@ ContainerEditor.Prototype = function() {
     var doc = this.getDocument();
     // first update the container
     var renderContext = RenderingEngine.createContext(this);
+    var $$ = renderContext.$$;
     if (change.isAffected([this.props.containerId, 'nodes'])) {
       for (var i = 0; i < change.ops.length; i++) {
         var op = change.ops[i];
@@ -352,12 +355,12 @@ ContainerEditor.Prototype = function() {
             var node = doc.get(nodeId);
             var nodeEl;
             if (node) {
-              nodeEl = this._renderNode(renderContext.$$, node);
+              nodeEl = this._renderNode($$, node);
             } else {
               // node does not exist anymore
               // so we insert a stub element, so that the number of child
               // elements is consistent
-              nodeEl = renderContext.$$('div');
+              nodeEl = $$('div');
             }
             this.insertAt(diff.getOffset(), nodeEl);
           } else if (diff.type === "delete") {
@@ -391,7 +394,6 @@ ContainerEditor.Prototype = function() {
     }
     _super.onNativeFocus.call(this, event);
   };
-
 
   // Create a first text element
   this.onCreateText = function(e) {

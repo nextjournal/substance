@@ -7,11 +7,6 @@ var Coordinate = require('../model/Coordinate');
 var Component = require('./Component');
 var DefaultDOMElement = require('./DefaultDOMElement');
 
-// It is not a good idea to derive the isolated node component's state from the
-// selection. Needing a selectin when inside an IsolatedNode, makes it impossible to enable
-// the contenteditable on the fly (does not work when clicking on an existing selection)
-// Instead we should leave to the
-
 function IsolatedNodeComponent() {
   IsolatedNodeComponent.super.apply(this, arguments);
 
@@ -84,35 +79,47 @@ IsolatedNodeComponent.Prototype = function() {
 
     el.on('mousedown', this.onMousedown);
     // shadowing handlers of the parent surface
+    // TODO: extract this into a helper so that we can reuse it anywhere where we want
+    // to prevent propagation to the parent surface
     el.on('keydown', this.onKeydown)
       .on('keypress', this._stopPropagation)
       .on('keyup', this._stopPropagation)
       .on('compositionstart', this._stopPropagation)
       .on('textInput', this._stopPropagation);
 
-
     el.append(
-      $$('div').addClass('se-isolated-node-boundary').addClass('sm-before').ref('before')
-        // zero-width character
-        // .append("\uFEFF")
+      $$('div').addClass('se-slug').addClass('sm-before').ref('before')
         // NOTE: better use a regular character otherwise Edge has problems
         .append("{")
     );
 
     var container = $$('div').addClass('se-container')
-      .attr('contenteditable', false)
-      .append(this.renderContent($$));
-    // TODO: there are some content implementation which would work better without that
+      .attr('contenteditable', false);
+
+    if (this.state.mode === 'cursor' && this.state.position === 'before') {
+      container.append(
+        $$('div').addClass('se-cursor').addClass('sm-before').attr('contenteditable', false)
+      );
+    }
+    container.append(this.renderContent($$));
+
+    // TODO: there are some content implementations which would work better without that
+    // i.e. having such an overlay here
     if (this._isDisabled()) {
       container.addClass('sm-disabled');
       container.append($$('div').addClass('se-blocker'));
     }
+
+    if (this.state.mode === 'cursor' && this.state.position === 'after') {
+      container.append(
+        $$('div').addClass('se-cursor').addClass('sm-after').attr('contenteditable', false)
+      );
+    }
+
     el.append(container);
 
     el.append(
-      $$('div').addClass('se-isolated-node-boundary').addClass('sm-after').ref('after')
-        // zero-width character
-        // .append("\uFEFF")
+      $$('div').addClass('se-slug').addClass('sm-after').ref('after')
         // NOTE: better use a regular character otherwise Edge has problems
         .append("}")
     );
@@ -151,7 +158,7 @@ IsolatedNodeComponent.Prototype = function() {
   };
 
   this._isDisabled = function() {
-    return this.state.mode === 'selected' || !this.state.mode;
+    return this.state.mode === 'selected' || this.state.mode === 'cursor' || !this.state.mode;
   };
 
   this.getId = function() {
@@ -171,28 +178,39 @@ IsolatedNodeComponent.Prototype = function() {
 
       if (this.state.mode === 'focused') {
         if (surfaceId && !surfaceId.startsWith(this._id)) {
-          this.setState({
-            mode: null
-          });
+          this.setState({ mode: null });
           return;
         }
       } else {
         var nodeId = this.props.node.id;
-        var nodeIsSelected = (
-          (surfaceId === this.getSurfaceParent().getId()) && (
-            // (newSel.isNodeSelection() && newSel.getNodeId() === nodeId) ||
-            (newSel.isContainerSelection() && newSel.containsNodeFragment(nodeId))
-          )
+        var inSurface = (surfaceId === this.getSurfaceParent().getId());
+        var nodeIsSelected = (inSurface &&
+          newSel.isContainerSelection() && newSel.containsNodeFragment(nodeId)
         );
         // TODO: probably we need to dispatch the state to descendants
-        if (!this.state.mode && nodeIsSelected) {
-          this.setState({
-            mode: 'selected'
-          });
-        } else if (this.state.mode === 'selected' && !nodeIsSelected) {
-          this.setState({
-            mode: null
-          });
+        if (this.state.mode !== 'selected' && nodeIsSelected) {
+          console.log('IsolatedNodeComponent: detected node selection.');
+          this.setState({ mode: 'selected' });
+          return;
+        }
+        var hasCursor = (inSurface &&
+          newSel.isContainerSelection() &&
+          newSel.isCollapsed() &&
+          newSel.startPath.length === 1 &&
+          newSel.startPath[0] === nodeId
+        );
+        if (this.state.mode !== 'cursor' && hasCursor) {
+          console.log('IsolatedNodeComponent: detected cursor.');
+          this.setState({ mode: 'cursor', position: newSel.startOffset === 0 ? 'before' : 'after' });
+          return;
+        }
+        if (this.state.mode === 'selected' && !nodeIsSelected) {
+          this.setState({ mode: null });
+          return;
+        }
+        if (this.state.mode === 'cursor' && !hasCursor) {
+          this.setState({ mode: null });
+          return;
         }
       }
     }
@@ -228,7 +246,6 @@ IsolatedNodeComponent.Prototype = function() {
     }
   };
 
-
   this._stopPropagation = function(event) {
     event.stopPropagation();
   };
@@ -255,7 +272,7 @@ Component.extend(IsolatedNodeComponent);
 IsolatedNodeComponent.getCoordinate = function(surfaceEl, node) {
   // special treatment for block-level isolated-nodes
   var parent = node.getParent();
-  if (node.isTextNode() && parent.is('.se-isolated-node-boundary')) {
+  if (node.isTextNode() && parent.is('.se-slug')) {
     var boundary = parent;
     var isolatedNodeEl = boundary.getParent();
     var nodeId = isolatedNodeEl.getAttribute('data-id');

@@ -631,7 +631,7 @@ Surface.Prototype = function() {
     }
     // 'mouseDown' is triggered before 'focus' so we tell
     // our focus handler that we are already dealing with it
-    // The opposite situation, when the surface gets focused event.g. using keyboard
+    // The opposite situation, when the surface gets focused e.g. using keyboard
     // then the handler needs to kick in and recover a persisted selection or such
     this.skipNextFocusEvent = true;
 
@@ -640,7 +640,7 @@ Surface.Prototype = function() {
     // TODO: this needs to be solved properly; be aware of browser incompatibilities
     // HACK: not working in IE which then does not allow a range selection anymore
     if (!platform.isIE) {
-      // HACK: clearing this, otherwise we have troubles with the old selection in the way for the next selection
+      // HACK: clearing the DOM selection, otherwise we have troubles with the old selection being in the way for the next selection
       this.domSelection.clear();
       setTimeout(function() {
         if (this.domSelection) {
@@ -754,7 +754,7 @@ Surface.Prototype = function() {
       frag.key = key;
       // skip frags which are not rendered here
       if (!this._getComponentForKey(key)) return;
-      // extract the cursor fragment for special treatment (not show when focused)
+      // extract the cursor fragment for special treatment (not shown when focused)
       if (frag.type === 'cursor' && owner === 'local-user') {
         _state.cursorFragment = frag;
         return;
