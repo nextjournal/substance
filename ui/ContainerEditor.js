@@ -192,6 +192,16 @@ ContainerEditor.Prototype = function() {
     }.bind(this));
   };
 
+  this._handleEnterKey = function(event) {
+    var sel = this.getSelection();
+    if (sel.isNodeSelection() && sel.isEntireNodeSelected()) {
+      event.preventDefault();
+      event.stopPropagation();
+    } else {
+      _super._handleEnterKey.apply(this, arguments);
+    }
+  };
+
   // Used by Clipboard
   this.isContainerEditor = function() {
     return true;

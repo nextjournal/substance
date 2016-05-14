@@ -189,7 +189,7 @@ IsolatedNodeComponent.Prototype = function() {
         );
         // TODO: probably we need to dispatch the state to descendants
         if (this.state.mode !== 'selected' && nodeIsSelected) {
-          console.log('IsolatedNodeComponent: detected node selection.');
+          // console.log('IsolatedNodeComponent: detected node selection.');
           this.setState({ mode: 'selected' });
           return;
         }
@@ -200,7 +200,7 @@ IsolatedNodeComponent.Prototype = function() {
           newSel.startPath[0] === nodeId
         );
         if (this.state.mode !== 'cursor' && hasCursor) {
-          console.log('IsolatedNodeComponent: detected cursor.');
+          // console.log('IsolatedNodeComponent: detected cursor.');
           this.setState({ mode: 'cursor', position: newSel.startOffset === 0 ? 'before' : 'after' });
           return;
         }
@@ -251,6 +251,7 @@ IsolatedNodeComponent.Prototype = function() {
   };
 
   this._selectNode = function() {
+    console.log('IsolatedNodeComponent: selecting node.');
     var surface = this.context.surface;
     var doc = surface.getDocument();
     var node = this.props.node;

@@ -187,7 +187,10 @@ SurfaceManager.Prototype = function() {
     var surfaceId = sel.surfaceId;
     var surface = this.surfaces[surfaceId];
     if (surface) {
-      surface.rerenderDOMSelection();
+      console.log('SurfaceManager: calling surface.focus() after session update.', surfaceId);
+      surface.focus();
+      // surface.el.focus();
+      // surface.rerenderDOMSelection();
     }
   };
 

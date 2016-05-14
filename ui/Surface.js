@@ -72,7 +72,6 @@ function Surface() {
 
   this._state = {
     // true if the document session's selection is addressing this surface
-    hasNativeFocus: false,
     skipNextFocusEvent: false,
     // used to avoid multiple rerenderings (e.g. simultanous update of text and fragments)
     isDirty: false,
@@ -356,7 +355,7 @@ Surface.Prototype = function() {
   };
 
   this.blur = function() {
-    if (this._state.hasNativeFocus) {
+    if (this._hasNativeFocus()) {
       this.el.blur();
     } else {
       this._update();
@@ -365,10 +364,16 @@ Surface.Prototype = function() {
     this.emit('surface:blurred', this);
   };
 
-  this.focus = function() {
-    if (!this._state.hasNativeFocus) {
-      this.el.focus();
+  this._hasNativeFocus = function() {
+    if (inBrowser) {
+      var focusedElement = window.document.activeElement;
+      return this.el.getNativeElement() === focusedElement;
     }
+    return false;
+  };
+
+  this.focus = function() {
+    this.el.focus();
     this._update();
     this.rerenderDOMSelection();
     this.emit('surface:focused', this);
@@ -391,7 +396,7 @@ Surface.Prototype = function() {
       // we update only the one which as a focused document.
       (!Surface.MULTIPLE_APPS_ON_PAGE || window.document.hasFocus())) {
       // console.log('Surface.rerenderDOMSelection', this.__id__);
-      if (!this._state.hasNativeFocus) {
+      if (!this._hasNativeFocus()) {
         this.skipNextFocusEvent = true;
         this.el.focus();
       }
@@ -690,9 +695,8 @@ Surface.Prototype = function() {
   };
 
   this.onNativeBlur = function() {
-    // console.log('Native blur on surface', this.getId());
+    console.log('Native blur on surface', this.getId());
     var _state = this._state;
-    _state.hasNativeFocus = false;
     if (_state.skipNextFocusEvent) {
       _state.skipNextFocusEvent = false;
       return;
@@ -705,9 +709,8 @@ Surface.Prototype = function() {
   };
 
   this.onNativeFocus = function() {
-    // console.log('Native focus on surface', this.getId());
+    console.log('Native focus on surface', this.getId());
     var _state = this._state;
-    _state.hasNativeFocus = true;
     // in some cases we don't react on native focusing
     // e.g., when the selection is done via mouse
     // or if the selection is set implicitly
@@ -809,7 +812,7 @@ Surface.Prototype = function() {
   this._updateProperty = function(key) {
     var _state = this._state;
     // hide the cursor fragment when focused
-    var cursorFragment = _state.hasNativeFocus ? null : _state.cursorFragment;
+    var cursorFragment = this._hasNativeFocus() ? null : _state.cursorFragment;
     var frags = _state.fragments[key] || [];
     if (cursorFragment && cursorFragment.key === key) {
       frags = frags.concat([cursorFragment]);
@@ -896,7 +899,7 @@ Surface.Prototype = function() {
     // when a new DOM selection is set.
     // ATTENTION: in FF 44 this was causing troubles, making the CE unselectable
     // until the next native blur.
-    if (!sel.isNull() && this.el && !_state.hasNativeFocus) {
+    if (!sel.isNull() && this.el && !this._hasNativeFocus()) {
       _state.skipNextFocusEvent = true;
       this.el.focus();
     }
