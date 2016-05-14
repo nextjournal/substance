@@ -99,11 +99,14 @@ ContainerSelection.Prototype = function() {
     return (
       this.startPath.length === 1 &&
       this.endPath.length === 1 &&
-      this.startPath[0] == this.endPath[0] &&
-      (this.reverse ?
-        this.endOffset === 0 && this.startOffset === 1 :
-        this.startOffset === 0 && this.endOffset === 1)
+      this.startPath[0] == this.endPath[0]
     );
+  };
+
+  this.isEntireNodeSelected = function() {
+    return (this.reverse ?
+      this.endOffset === 0 && this.startOffset === 1 :
+      this.startOffset === 0 && this.endOffset === 1);
   };
 
   this.getNodeId = function() {

@@ -691,6 +691,7 @@ QUnit.test("isNodeSelection()", function(assert) {
     endOffset: 1
   });
   assert.ok(sel.isNodeSelection(), "selection should be a node selection");
+  assert.ok(sel.isEntireNodeSelected(), "selection should be span over the entire node");
   // not a NodeSelection (but within one node)
   sel = doc.createSelection({
     type: 'container',
@@ -700,7 +701,8 @@ QUnit.test("isNodeSelection()", function(assert) {
     endPath: ['p1'],
     endOffset: 1
   });
-  assert.notOk(sel.isNodeSelection(), "selection should not be a node selection");
+  assert.ok(sel.isNodeSelection(), "selection should be a node selection");
+  assert.notOk(sel.isEntireNodeSelected(), "selection should not span over the entire node");
   // not a NodeSelection (is spanning multiple nodes)
   sel = doc.createSelection({
     type: 'container',

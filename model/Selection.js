@@ -85,6 +85,10 @@ Selection.Prototype = function() {
     return false;
   };
 
+  this.isEntireNodeSelected = function() {
+    return false;
+  };
+
   this.getNodeId = function() {
     return null;
   };
