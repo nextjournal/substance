@@ -1274,6 +1274,50 @@ QUnit.test("#312: refs should be bound to the owner, not to the parent.", functi
   assert.equal(comp.refs.foo.text(), 'foo', 'Ref should point to the right component.');
 });
 
+QUnit.uiTest("Combine props and children via append", function(assert) {
+
+  function Toolbar() {
+    TestComponent.super.apply(this, arguments);
+
+    this.render = function($$) {
+      var el = $$('div').append(
+        $$(SimpleComponent, this.props.strong).append('Strong')
+      );
+      return el;
+    };
+  }
+  TestComponent.extend(Toolbar);
+
+  var toolState = {strong: {active: true}};
+  // Mount to a detached element
+  var el = window.document.createElement('div');
+  var comp = Component.mount(Toolbar, toolState, el);
+  // FIX: toolState.strong.children is populated wrongly
+  assert.deepEqual(toolState, {strong: {active: true}}, "props object should not have been touched");
+});
+
+QUnit.uiTest("Pass-through props and add children via append", function(assert) {
+
+  function MyComponent() {
+    TestComponent.super.apply(this, arguments);
+
+    this.render = function($$) {
+      var el = $$('div').append(
+        $$(SimpleComponent, this.props).append('Child 1')
+      );
+      return el;
+    };
+  }
+  TestComponent.extend(MyComponent);
+
+  var toolState = {strong: {active: true}};
+  var el = window.document.createElement('div');
+  var props = {foo: 'bar'};
+  var comp = Component.mount(MyComponent, props, el);
+
+  assert.ok(comp, 'Component should be mounted');
+});
+
 }
 
 // with RenderingEngine in debug mode
