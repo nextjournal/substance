@@ -69,7 +69,6 @@ SurfaceManager.Prototype = function() {
   this.unregisterSurface = function(surface) {
     surface.off(this);
     delete this.surfaces[surface.getId()];
-    // TODO: this should not be necessary anymore
     if (surface && this.focusedSurface === surface) {
       this.focusedSurface = null;
     }
@@ -78,10 +77,15 @@ SurfaceManager.Prototype = function() {
   // keeps track of selection fragments and collaborator fragments
   this.onSessionUpdate = function(update) {
     var _state = this._state;
+    var focusedSurface = _state.focusedSurface;
 
     var updatedSurfaces = {};
-
     if (update.selection) {
+      if (focusedSurface) {
+        if (update.selection.surfaceId !== focusedSurface.getId()) {
+          focusedSurface.blur();
+        }
+      }
       _state.focusedSurface = this.surfaces[update.selection.surfaceId];
     }
 
@@ -183,14 +187,10 @@ SurfaceManager.Prototype = function() {
       here we will make sure that at the end the DOM selection is rendered
       on the active surface
     */
-    var sel = this.documentSession.getSelection();
-    var surfaceId = sel.surfaceId;
-    var surface = this.surfaces[surfaceId];
-    if (surface) {
-      console.log('SurfaceManager: calling surface.focus() after session update.', surfaceId);
-      surface.focus();
-      // surface.el.focus();
-      // surface.rerenderDOMSelection();
+    var focusedSurface = this._state.focusedSurface;
+    if (focusedSurface) {
+      console.log('SurfaceManager: calling surface.focus() after session update.', focusedSurface.getId());
+      focusedSurface.focus();
     }
   };
 

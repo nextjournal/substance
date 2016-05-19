@@ -259,18 +259,6 @@ ContainerEditor.Prototype = function() {
     return textCommands;
   };
 
-  this.enable = function() {
-    // As opposed to a ContainerEditor, a regular Surface
-    // is not a ContentEditable -- but every contained TextProperty
-    this.attr('contenteditable', true);
-    this.enabled = true;
-  };
-
-  this.disable = function() {
-    this.removeAttr('contenteditable');
-    this.enabled = false;
-  };
-
   /* Editing behavior */
 
 
@@ -381,24 +369,21 @@ ContainerEditor.Prototype = function() {
   };
 
   this.onMouseDown = function(event) {
-    if (!this.enabled) {
-      warn('ContainerEditor %s is not enabled. Not reacting on mousedown.');
-      return;
-    }
+    // EXPERIMENTAL: we want to be able to activate a surface on mousedown so that
     if (this.isEditable()) {
-      this.attr('contenteditable', true);
+      this.el.attr('contenteditable', true);
     }
     _super.onMouseDown.call(this, event);
   };
 
   this.onNativeBlur = function(event) {
-    this.attr('contenteditable', false);
+    this.el.attr('contenteditable', false);
     _super.onNativeBlur.call(this, event);
   };
 
   this.onNativeFocus = function(event) {
     var sel = this.getSelection();
-    if (sel && !sel.isNull() && sel.surfaceId === this.name && this.isEditable()) {
+    if (sel && !sel.isNull() && sel.surfaceId === this.getId() && this.isEditable()) {
       this.attr('contenteditable', true);
     }
     _super.onNativeFocus.call(this, event);

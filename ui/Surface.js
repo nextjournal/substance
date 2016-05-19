@@ -355,6 +355,7 @@ Surface.Prototype = function() {
   };
 
   this.blur = function() {
+    this.el.attr('contenteditable', false);
     if (this._hasNativeFocus()) {
       this.el.blur();
     } else {
@@ -373,7 +374,10 @@ Surface.Prototype = function() {
   };
 
   this.focus = function() {
-    this.el.focus();
+    if (this.isEditable()) {
+      this.el.attr('contenteditable', true);
+      this.el.focus();
+    }
     this._update();
     this.rerenderDOMSelection();
     this.emit('surface:focused', this);
@@ -697,6 +701,9 @@ Surface.Prototype = function() {
   this.onNativeBlur = function() {
     console.log('Native blur on surface', this.getId());
     var _state = this._state;
+    if (this.isEditable()) {
+      this.el.attr('contenteditable', false);
+    }
     if (_state.skipNextFocusEvent) {
       _state.skipNextFocusEvent = false;
       return;
