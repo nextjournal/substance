@@ -43,6 +43,12 @@ DOMSelection.Prototype = function() {
     return doc.createSelection(range);
   };
 
+  this.getSelectionForDOMRange = function(wrange) {
+    var range = this.mapDOMRange(wrange);
+    var doc = this.surface.getDocument();
+    return doc.createSelection(range);
+  };
+
   // function _printStacktrace() {
   //   try {
   //     throw new Error();
@@ -183,8 +189,11 @@ DOMSelection.Prototype = function() {
     @returns {model/Range}
   */
   this.mapDOMRange = function(wRange) {
-    return this._getRange(wRange.startContainer, wRange.startOffset,
-      wRange.endContainer, wRange.endOffset);
+    return this._getRange(
+      DefaultDOMElement.wrapNativeElement(wRange.startContainer),
+      wRange.startOffset,
+      DefaultDOMElement.wrapNativeElement(wRange.endContainer),
+      wRange.endOffset);
   };
 
   /*
@@ -206,6 +215,7 @@ DOMSelection.Prototype = function() {
     var anchorNode = DefaultDOMElement.wrapNativeElement(wSel.anchorNode);
     if (wSel.isCollapsed) {
       var coor = this._getCoordinate(anchorNode, wSel.anchorOffset, options);
+      if (!coor) return null;
       // EXPERIMENTAL: when the cursor is in an IsolatedNode
       // we return a selection for the whole node
       if (coor.__inIsolatedBlockNode__) {

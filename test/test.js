@@ -1,6 +1,8 @@
 'use strict';
 
+var clone = require('lodash/clone');
 var extend = require('lodash/extend');
+var forEach = require('lodash/forEach');
 var isNil = require('lodash/isNil');
 var tape = require('tape');
 var inBrowser = require('../util/inBrowser');
@@ -48,15 +50,25 @@ if (inBrowser && substanceGlobals.TEST_UI) {
     this._ok = true;
     this.calledEnd = false;
     this.ended = false;
+    this.runtime = -1;
   };
 
   var _run = Test.prototype.run;
   Test.prototype.run = function() {
     var _ok = false;
     try {
+      this.reset();
+      var start = Date.now();
+      this.once('end', function() {
+        this.runtime = Math.round(Date.now() - start);
+      }.bind(this));
       _run.apply(this, arguments);
       _ok = true;
-    } finally {
+    }
+    // Using *finally* without *catch* enables us to use browser's
+    // 'Stop on uncaught exceptions', but still making sure
+    // that 'end' is emitted
+    finally {
       if (!_ok) {
         this._ok = false;
         this.emit('end');
@@ -64,7 +76,10 @@ if (inBrowser && substanceGlobals.TEST_UI) {
     }
   };
 
-  var nextTick = process.nextTick;
+  // Using a timeout feels better, as the UI gets updated while
+  // it is running.
+  // var nextTick = process.nextTick;
+  var nextTick = function(f) { window.setTimeout(f, 0); };
   harness = tape.createHarness();
   var results = harness._results;
 
@@ -73,8 +88,9 @@ if (inBrowser && substanceGlobals.TEST_UI) {
     function next() {
       if (tests.length > 0) {
         var t = tests.shift();
-        t.reset();
-        t.once('end', function(){ nextTick(next); });
+        t.once('end', function(){
+          nextTick(next);
+        });
         t.run();
       }
     }
@@ -85,8 +101,6 @@ if (inBrowser && substanceGlobals.TEST_UI) {
     return results.tests || [];
   };
 }
-
-_withExtensions(harness, true);
 
 /*
   Helpers
@@ -113,24 +127,45 @@ function getTestArgs() {
   return { name: name, opts: opts, cb: cb };
 }
 
-function _withExtensions(tapeish, addModule) {
+function _withBeforeAndAfter(tapeish, args) {
+  var _before = args.opts.before;
+  var _after = args.opts.after;
+  var _setupUI = args.opts.setupUI;
+  return tapeish(args.name, args.opts, function (t) {
+    if(_before) _before(t);
+    if(_setupUI) _setupSandbox(t);
+    args.cb(t);
+    if(_setupUI) _teardownSandbox(t);
+    if(_after) _after(t);
+  });
+}
 
-  function _withBeforeAndAfter(args) {
-    var _before = args.opts.before;
-    var _after = args.opts.after;
-    var _setupUI = args.opts.setupUI;
-    return tapeish(args.name, args.opts, function (t) {
-      if(_before) _before(t);
-      if(_setupUI) _setupSandbox(t);
-      args.cb(t);
-      if(_setupUI) _teardownSandbox(t);
-      if(_after) _after(t);
-    });
-  }
+var defaultExtensions = {
+  UI: function() {
+    var args = this.getTestArgs(arguments);
+    if (!inBrowser) args.opts.skip = true;
+    if(inBrowser && !substanceGlobals.TEST_UI) args.opts.setupUI = true;
+    return _withBeforeAndAfter(this, args);
+  },
+  FF: function() {
+    var args = this.getTestArgs(arguments);
+    if (!inBrowser || !platform.isFF) args.opts.skip = true;
+    return this.UI(args.name, args.opts, args.cb);
+  },
+  WK: function() {
+    var args = this.getTestArgs(arguments);
+    if (!inBrowser || !platform.isWebKit) args.opts.skip = true;
+    return this.UI(args.name, args.opts, args.cb);
+  },
+};
+
+harness = _addExtensions(defaultExtensions, harness, true);
+
+function _addExtensions(extensions, tapeish, addModule) {
 
   if (addModule) {
     tapeish.module = function(moduleName) {
-      return _withExtensions(function() {
+      return _addExtensions(extensions, function() {
         var args = getTestArgs.apply(null, arguments);
         var name = moduleName + ": " + args.name;
         var t = tapeish(name, args.opts, args.cb);
@@ -141,37 +176,31 @@ function _withExtensions(tapeish, addModule) {
   }
 
   tapeish.withOptions = function(opts) {
-    return _withExtensions(function() {
+    return _addExtensions(extensions, function() {
       var args = getTestArgs.apply(null, arguments);
       var _opts = extend({}, opts, args.opts);
       return tapeish(args.name, _opts, args.cb);
     });
   };
 
-  tapeish.UI = function() {
-    var args = getTestArgs.apply(null, arguments);
-    if (!inBrowser) {
-      args.opts.skip = true;
-    }
-    if(inBrowser && !substanceGlobals.TEST_UI) args.opts.setupUI = true;
-    return _withBeforeAndAfter(args);
+  tapeish.withExtension = function(name, fn) {
+    var exts = clone(extensions);
+    exts[name] = fn;
+    // wrapping tapeish to create a new tapeish with new extensions
+    return _addExtensions(exts, function() {
+      return tapeish.apply(tapeish, arguments);
+    }, true);
   };
 
-  tapeish.FF = function() {
-    var args = getTestArgs.apply(null, arguments);
-    if (!inBrowser || !platform.isFF) {
-      args.opts.skip = true;
-    }
-    return tapeish.UI(args.name, args.opts, args.cb);
+  tapeish.getTestArgs = function(args) {
+    return getTestArgs.apply(null, args);
   };
 
-  tapeish.WK = function() {
-    var args = getTestArgs.apply(null, arguments);
-    if (!inBrowser || !platform.isWebKit) {
-      args.opts.skip = true;
-    }
-    return tapeish.UI(args.name, args.opts, args.cb);
-  };
+  forEach(extensions, function(fn, name) {
+    tapeish[name] = function() {
+      return fn.apply(tapeish, arguments);
+    };
+  });
 
   return tapeish;
 }

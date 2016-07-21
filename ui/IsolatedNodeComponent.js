@@ -54,15 +54,17 @@ IsolatedNodeComponent.Prototype = function() {
     docSession.off(this);
   };
 
+  this.getClassNames = function() {
+    return 'sc-isolated-node';
+  };
+
   this.render = function($$) {
     var node = this.props.node;
+    var ContentClass = this.ContentClass;
     // console.log('##### IsolatedNodeComponent.render()', $$.capturing);
     var el = _super.render.apply(this, arguments);
     el.tagName = this.__elementTag;
-
-    var ContentClass = this.ContentClass;
-
-    el.addClass('sc-isolated-node')
+    el.addClass(this.getClassNames())
       .addClass('sm-'+this.props.node.type)
       .attr("data-id", node.id);
 
@@ -85,6 +87,11 @@ IsolatedNodeComponent.Prototype = function() {
       .on('keyup', this._stopPropagation)
       .on('compositionstart', this._stopPropagation)
       .on('textInput', this._stopPropagation);
+
+    if (this.context.dragManager) {
+      el.on('dragstart', this.onDragstart);
+      el.on('drop', this.onDrop);
+    }
 
     el.append(
       $$(this.__elementTag).addClass('se-slug').addClass('sm-before').ref('before')
@@ -110,7 +117,7 @@ IsolatedNodeComponent.Prototype = function() {
     }
     container.append(this.renderContent($$, node));
 
-    if (this._isDisabled() || this.state.mode === 'co-focused') {
+    if (this.isDisabled()) {
       container.addClass('sm-disabled');
       // NOTE: there are some content implementations which work better without a blocker
       var blocker = $$(this.__elementTag).addClass('se-blocker')
@@ -143,7 +150,7 @@ IsolatedNodeComponent.Prototype = function() {
     } else {
       var props = {
         node: node,
-        disabled: this._isDisabled(),
+        disabled: this.isDisabled(),
         isolatedNodeState: this.state.mode
       };
       if (this.state.mode === 'focused') {
@@ -187,9 +194,11 @@ IsolatedNodeComponent.Prototype = function() {
     return ComponentClass;
   };
 
-  this._isDisabled = function() {
+  this.isDisabled = function() {
     return !this.state.mode || ['co-selected', 'cursor'].indexOf(this.state.mode) > -1;
   };
+
+  this._isDisabled = this.isDisabled;
 
   this._getSurfaceParent = function() {
     return this.context.surface;
@@ -244,13 +253,21 @@ IsolatedNodeComponent.Prototype = function() {
     if (sel.isCustomSelection() && id === surfaceId) {
       return { mode: 'focused' };
     }
-    // HACK: a looks a bit hacky and is, but
-    // fine for now. The structure of surfaceId is only exploited here
+    // HACK: a looks a bit hacky. Fine for now.
+    // TODO: we should think about switching to surfacePath, instead of surfaceId
     else if (startsWith(surfaceId, id)) {
-      if (surfaceId[id.length] === '/' && surfaceId.indexOf('/', id.length+1) < 0) {
-        return { mode: 'focused' };
+      var path1 = id.split('/');
+      var path2 = surfaceId.split('/');
+      var len1 = path1.length;
+      var len2 = path2.length;
+      if (len2 > len1 && path1[len1-1] === path2[len1-1]) {
+        if (len2 === len1 + 1) {
+          return { mode: 'focused' };
+        } else {
+          return { mode: 'co-focused' };
+        }
       } else {
-        return { mode: 'co-focused' };
+        return null;
       }
     }
   };
@@ -279,6 +296,16 @@ IsolatedNodeComponent.Prototype = function() {
       event.preventDefault();
       this._escape();
     }
+  };
+
+  this.onDragstart = function(event) {
+    // console.log('Start dragging on', this.getId());
+    this.context.dragManager.onDragstart(event);
+  };
+
+  this.onDrop = function(event) {
+    // console.log('Received drop on IsolatedNode', this.getId());
+    this.context.dragManager.onDrop(event);
   };
 
   this._escape = function() {

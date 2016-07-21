@@ -86,6 +86,8 @@ function Surface() {
 
 Surface.Prototype = function() {
 
+  this._isSurface = true;
+
   this.getChildContext = function() {
     return {
       surface: this,
@@ -100,7 +102,6 @@ Surface.Prototype = function() {
     }
     if (!this.isReadonly() && inBrowser) {
       this.domSelection = new DOMSelection(this);
-      this.clipboard.didMount();
       // this.domObserver = new window.MutationObserver(this.onDomMutations.bind(this));
       // this.domObserver.observe(this.el.getNativeElement(), { subtree: true, characterData: true, characterDataOldValue: true });
     }
@@ -156,13 +157,17 @@ Surface.Prototype = function() {
         // Mouse Events
         el.on('mousedown', this.onMouseDown);
         // disable drag'n'drop
-        el.on('dragstart', this.onDragStart);
         // we will react on this to render a custom selection
         el.on('focus', this.onNativeFocus);
         el.on('blur', this.onNativeBlur);
         // activate the clipboard
         this.clipboard.attach(el);
       }
+
+      if (this.context.dragManager) {
+        el.on('drop', this.onDrop);
+      }
+
     }
     return el;
   };
@@ -557,7 +562,7 @@ Surface.Prototype = function() {
   // though, there are some things which do not work well cross-browser
   // particularly, double- and triple clicks.
   this.onMouseDown = function(event) {
-    // console.log('mousedown on', this.name);
+    // console.log('mousedown on', this.getId());
     event.stopPropagation();
 
     // special treatment for triple clicks
@@ -608,6 +613,7 @@ Surface.Prototype = function() {
   };
 
   this.onMouseUp = function() {
+    // console.log('mouseup on', this.getId());
     // ATTENTION: this delay is necessary for cases the user clicks
     // into an existing selection. In this case the window selection still
     // holds the old value, and is set to the correct selection after this
@@ -634,9 +640,9 @@ Surface.Prototype = function() {
     console.info("We want to enable a DOM MutationObserver which catches all changes made by native interfaces (such as spell corrections, etc). Lookout for this message and try to set Surface.skipNextObservation=true when you know that you will mutate the DOM.", e);
   };
 
-  this.onDragStart = function(event) {
-    event.preventDefault();
-    event.stopPropagation();
+  this.onDrop = function(event) {
+    // console.log('Received drop on Surface', this.getId(), event);
+    this.context.dragManager.onDrop(event);
   };
 
   this.onNativeBlur = function() {
@@ -1007,13 +1013,23 @@ Surface.Prototype = function() {
   this._prepareArgs = function(args) { // eslint-disable-line
   };
 
-  this.setSelectionFromEvent = function(evt) {
+  // Experimental: used by DragManager
+  this.getSelectionFromEvent = function(event) {
     if (this.domSelection) {
+      var domRange = Surface.getDOMRangeFromEvent(event);
+      var sel = this.domSelection.getSelectionForDOMRange(domRange);
+      sel.surfaceId = this.getId();
+      return sel;
+    }
+  };
+
+  this.setSelectionFromEvent = function(event) {
+    var sel = this.getSelectionFromEvent(event);
+    if (sel) {
       this._state.skipNextFocusEvent = true;
-      var domRange = Surface.getDOMRangeFromEvent(evt);
-      var range = this.domSelection.getSelectionFromDOMRange(domRange);
-      var sel = this.getDocument().createSelection(range);
       this.setSelection(sel);
+    } else {
+      console.error('Could not create a selection from event.');
     }
   };
 

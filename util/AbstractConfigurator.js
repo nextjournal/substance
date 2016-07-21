@@ -7,8 +7,10 @@ var isString = require('lodash/isString');
 var DocumentSchema = require('../model/DocumentSchema');
 var EditingBehavior = require('../model/EditingBehavior');
 var Registry = require('../util/Registry');
+var ComponentRegistry = require('../ui/ComponentRegistry');
 var FileClientStub = require('../ui/FileClientStub');
 var SaveHandlerStub = require('../ui/SaveHandlerStub');
+var path = require('path');
 
 /**
  * Abstract Configurator for Substance editors.
@@ -29,6 +31,7 @@ function AbstractConfigurator() {
     textTypes: [],
     editingBehaviors: [],
     macros: [],
+    dndHandlers: [],
     icons: {},
     labels: {},
     saveHandler: SaveHandlerStub,
@@ -81,9 +84,16 @@ AbstractConfigurator.Prototype = function() {
   };
 
   /**
-    @param {String} sassFilePath path to sass style file.
-   */
-  this.addStyle = function(sassFilePath) {
+    Register a new Sass style. Each argument is a path fragment.
+
+    @example
+
+    ```js
+    config.addStyle(__dirname, '..', '_strong.scss');
+    ```
+  */
+  this.addStyle = function() {
+    var sassFilePath = path.join.apply(this, arguments);
     this.config.styles.push(sassFilePath);
   };
 
@@ -159,6 +169,13 @@ AbstractConfigurator.Prototype = function() {
     this.config.macros.push(macro);
   };
 
+  this.addDragAndDrop = function(DragAndDropHandlerClass) {
+    if (!DragAndDropHandlerClass.prototype._isDragAndDropHandler) {
+      throw new Error('Only isntances of DragAndDropHandler are allowed.');
+    }
+    this.config.dndHandlers.push(DragAndDropHandlerClass);
+  };
+
   this.setSaveHandler = function(saveHandler) {
     this.config.saveHandler = saveHandler;
   };
@@ -180,6 +197,10 @@ AbstractConfigurator.Prototype = function() {
 
   this.getConfig = function() {
     return this.config;
+  };
+
+  this.getStyles = function() {
+    return this.config.styles;
   };
 
   this.getSchema = function() {
@@ -235,7 +256,7 @@ AbstractConfigurator.Prototype = function() {
   };
 
   this.getComponentRegistry = function() {
-    var componentRegistry = new Registry();
+    var componentRegistry = new ComponentRegistry();
     forEach(this.config.components, function(ComponentClass, name) {
       componentRegistry.add(name, ComponentClass);
     });
@@ -318,6 +339,13 @@ AbstractConfigurator.Prototype = function() {
   this.getToolbarClass = function() {
     return this.config.ToolbarClass;
   };
+
+  this.createDragHandlers = function() {
+    return this.config.dndHandlers.map(function(DragAndDropHandlerClass) {
+      return new DragAndDropHandlerClass();
+    });
+  };
+
 };
 
 oo.initClass(AbstractConfigurator);

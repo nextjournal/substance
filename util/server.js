@@ -2,9 +2,12 @@
 /* eslint-disable no-console */
 
 var browserify = require('browserify');
-var sass = require('node-sass');
+var glob = require('glob');
 var fs = require('fs');
+var path = require('path');
 var each = require('lodash/each');
+var isString = require('lodash/isString');
+var bundleStyles = require('./bundleStyles');
 
 /**
   @module
@@ -47,7 +50,7 @@ server.serveJS = function(expressApp, route, sourcePath) {
 
   @param {ExpressApplication} expressApp Express.js application instance
   @param {String} route Express route under which the styles should be served
-  @param {String} sourcePath entry point for sass compilation
+  @param {Object} props either a configPath or a scssPath must be provided
 
   @example
 
@@ -55,20 +58,21 @@ server.serveJS = function(expressApp, route, sourcePath) {
   server.serveStyles(app, '/app.css', path.join(__dirname, 'src', 'app.scss'));
   ```
 */
-server.serveStyles = function(expressApp, route, sourcePath) {
+server.serveStyles = function(expressApp, route, props) {
+  if (isString(props)) {
+    console.warn("DEPRECATED: Use serveStyles(expressApp, '/app.css', {scssPath: 'app.scss'}");
+    props = {
+      scssPath: props
+    };
+  }
   expressApp.get(route, function(req, res) {
-    sass.render({
-      file: sourcePath,
-      sourceMap: true,
-      sourceMapEmbed: true,
-      outFile: 'app.css',
-    }, function(err, result) {
+    bundleStyles(props, function(err, css) {
       if (err) {
         console.error(err);
         res.status(400).json(err);
       } else {
         res.set('Content-Type', 'text/css');
-        res.send(result.css);
+        res.send(css);
       }
     });
   });
@@ -91,6 +95,47 @@ server.serveHTML = function(expressApp, route, sourcePath, config) {
       res.send(html);
     });
   });
+};
+
+server.serveTestSuite = function(expressApp, globPattern, options) {
+  options = options || {};
+  var cwd = process.cwd();
+  // Test suite
+  expressApp.get('/test/test.js', function (req, res) {
+    glob(globPattern, {}, function (err, testfiles) {
+      if (err || !testfiles || testfiles.length === 0) {
+        console.error('No tests found.');
+        res.send('500');
+      } else {
+        // console.log('Found test files:', testfiles);
+        var b = browserify({ debug: true, cache: false });
+        if (options.transforms) {
+          options.transforms.forEach(function(t) {
+            b.transform(t);
+          });
+        }
+        // NOTE: adding this file first as this will launch
+        // our customized version of tape for the browser.
+        b.add(path.join(__dirname, '..', 'test', 'app.js'));
+        b.add(testfiles.map(function(file) {
+          return path.join(cwd, file);
+        }))
+        .bundle()
+        .on('error', function(err){
+          console.error(err.message);
+        })
+        .pipe(res);
+      }
+    });
+  });
+  var serveTestPage = function(req, res) {
+    res.sendFile(path.join(__dirname, '..', 'test', 'index.html'));
+  };
+  expressApp.get('/test/index.html', serveTestPage);
+  expressApp.get('/test', function(req, res) {
+    res.redirect('/test/index.html');
+  });
+  server.serveStyles(expressApp, '/test/test.css', {scssPath: path.join(__dirname, '..', 'test', 'test.scss')});
 };
 
 

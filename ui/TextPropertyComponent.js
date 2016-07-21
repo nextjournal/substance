@@ -3,9 +3,12 @@
 var isNumber = require('lodash/isNumber');
 var Coordinate = require('../model/Coordinate');
 var AnnotatedTextComponent = require('./AnnotatedTextComponent');
+var CursorComponent = require('./CursorComponent');
+var SelectionFragmentComponent = require('./SelectionFragmentComponent');
 
 /**
-  Renders a text property. Used internally by different components to render editable text.
+  Renders a text property. Used internally by different components to render
+  editable text.
 
   @class
   @component
@@ -31,8 +34,12 @@ TextPropertyComponent.Prototype = function() {
 
   var _super = TextPropertyComponent.super.prototype;
 
+  this._isTextPropertyComponent = true;
+
   this.didMount = function() {
     _super.didMount.call(this);
+    // TODO: instead of letting Surface manage TextProperties
+    // we should instead use the Flow in future
     var surface = this.getSurface();
     if (surface) {
       surface._registerTextProperty(this);
@@ -60,11 +67,13 @@ TextPropertyComponent.Prototype = function() {
         'white-space': 'pre-wrap'
       });
 
-    if (this.props.editable) {
-      el.attr('contentEditable', true);
+    if (this.context.dragManager) {
+      el.on('drop', this.onDrop);
     }
 
-    el.append($$('br'));
+    if (!this.props.withoutBreak) {
+      el.append($$('br'));
+    }
     return el;
   };
 
@@ -72,27 +81,13 @@ TextPropertyComponent.Prototype = function() {
     var node = fragment.node;
     var id = node.id;
     var el;
-    if (node.type === 'cursor' || node.type === 'selection-fragment') {
-      el = $$('span').addClass('se-'+node.type);
-
-      if (node.type === 'cursor') {
-        // Add zero-width character. Since we have a non-empty element, the
-        // outline style set on the cursor would not be visible in certain
-        // scenarios (e.g. when cursor is at the very beginning of a text.
-        el.append("\uFEFF");
-        el.append($$('div').addClass('se-cursor-inner'));
-      }
-
-      if (node.collaborator) {
-        var collaboratorIndex = node.collaborator.colorIndex;
-        el.addClass('sm-collaborator-'+collaboratorIndex);
-      } else {
-        el.addClass('sm-local-user');
-      }
+    if (node.type === 'cursor') {
+      el = $$(CursorComponent, { collaborator: node.collaborator });
+    } else if (node.type === 'selection-fragment') {
+      el = $$(SelectionFragmentComponent, { collaborator: node.collaborator });
     } else {
       el = _super._renderFragment.apply(this, arguments);
       if (node.constructor.static.isInline) {
-        // FIXME: enabling this reveals a bug in RenderEngine with reusing a component but reattached to a new parent.
         el.ref(id);
       }
       // Adding refs here, enables preservative rerendering
@@ -105,6 +100,11 @@ TextPropertyComponent.Prototype = function() {
     }
     el.attr('data-offset', fragment.pos);
     return el;
+  };
+
+  this.onDrop = function(event) {
+    // console.log('Received drop on TextProperty', this.getPath());
+    this.context.dragManager.onDrop(event);
   };
 
   this.getPath = function() {
@@ -123,10 +123,6 @@ TextPropertyComponent.Prototype = function() {
       annotations = annotations.concat(fragments);
     }
     return annotations;
-  };
-
-  this.setFragments = function() {
-    this.children[0].extendProps({ annotations: this.getAnnotations() });
   };
 
   this.getDocument = function() {

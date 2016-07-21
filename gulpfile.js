@@ -10,6 +10,7 @@ var argv = require('yargs').argv;
 var gulpif = require('gulp-if');
 var rename = require('gulp-rename');
 var eslint = require('gulp-eslint');
+var sassLint = require('gulp-sass-lint');
 var tape = require('gulp-tape');
 var tapSpec = require('tap-spec');
 var browserify = require('browserify');
@@ -21,7 +22,9 @@ var config = require('./doc/config.json');
 var sass = require('gulp-sass');
 var through2 = require('through2');
 var fs = require('fs');
+var glob = require('glob');
 var Karma = require('karma').Server;
+var istanbul = require('istanbul');
 
 gulp.task('doc:sass', function() {
   gulp.src('./doc/app.scss')
@@ -64,7 +67,7 @@ gulp.task('doc:bundle', function () {
 
 gulp.task('doc', ['doc:sass', 'doc:bundle', 'doc:assets', 'doc:data']);
 
-gulp.task('lint', function() {
+gulp.task('lint:js', function() {
   return gulp.src([
     './collab/**/*.js',
     './doc/**/*.js',
@@ -78,6 +81,21 @@ gulp.task('lint', function() {
     .pipe(eslint.failAfterError());
 });
 
+gulp.task('lint:sass', function () {
+  return gulp.src([
+    './packages/**/*.scss',
+    './styles/**/*.scss',
+    './doc/**/*.scss',
+    './test/**/*.scss'
+  ])
+  .pipe(sassLint({
+    configFile: '.sass-lint.yml'
+  }))
+  .pipe(sassLint.format())
+  .pipe(sassLint.failOnError());
+});
+
+gulp.task('lint', ['lint:js', 'lint:sass']);
 
 gulp.task('build', ['lint'], function() {
   return browserify({
@@ -133,7 +151,7 @@ gulp.task('test:firefox', ['lint'], function(done) {
 
 gulp.task('test:browsers', ['test:chrome', 'test:firefox']);
 
-gulp.task('test:server', ['lint'], function(done) {
+gulp.task('test:server', ['lint'], function() {
   return gulp.src('test/**/*.test.js')
     .pipe(tape({
       reporter: tapSpec()
@@ -143,5 +161,24 @@ gulp.task('test:server', ['lint'], function(done) {
 gulp.task('test:qunit', ['lint', 'test:qunit:karma', 'test:qunit:server']);
 
 gulp.task('test', ['lint', 'test:browsers', 'test:server']);
+
+// this task depends on results created by 'test' but we don't want
+// to run tests again when this is called
+gulp.task('coverage', function(done) {
+  var collector = new istanbul.Collector();
+  var reporter = new istanbul.Reporter(null, './coverage/report');
+  reporter.addAll(['lcov']);
+  glob("./coverage/json/**/coverage*.json", {}, function (err, files) {
+    files.forEach(function (file) {
+      var coverageObject = JSON.parse(fs.readFileSync(file, 'utf8'));
+      collector.add(coverageObject);
+    });
+    files.forEach(function(f) {
+      console.log('Adding coverage file '+f);
+      collector.add(JSON.parse(fs.readFileSync(f, 'utf8')));
+    });
+    reporter.write(collector, false, done);
+  });
+});
 
 gulp.task('default', ['build']);

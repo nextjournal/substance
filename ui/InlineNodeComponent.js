@@ -13,25 +13,23 @@ InlineNodeComponent.Prototype = function() {
 
   var _super = InlineNodeComponent.super.prototype;
 
+  this._isInlineNodeComponent = true;
+
   // use spans everywhere
   this.__elementTag = 'span';
   this.__slugChar = "\uFEFF";
 
+  this.getClassNames = function() {
+    return 'sc-inline-node';
+  };
+
   this.render = function($$) { // eslint-disable-line
     var el = _super.render.apply(this, arguments);
-
-    el.addClass('sc-inline-node')
-      .removeClass('sc-isolated-node')
-      .attr("data-id", this.props.node.id)
-      .attr('data-inline', '1');
-
+    el.attr('data-inline', '1');
     return el;
   };
 
-  this._getContentClass = function(node) {
-    return _super._getContentClass.call(this, node);
-  };
-
+  // TODO: this is almost the same as the super method. Try to consolidate.
   this._deriveStateFromSelectionState = function(selState) {
     var sel = selState.getSelection();
     var surfaceId = sel.surfaceId;

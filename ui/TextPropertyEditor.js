@@ -53,10 +53,12 @@ TextPropertyEditor.Prototype = function() {
 
     el.append(
       $$(TextProperty, {
-        tagName: "div",
-        path: this.props.path
+        tagName: this.props.tagName || "div",
+        path: this.props.path,
+        withoutBreak: this.props.withoutBreak
       })
     );
+
     return el;
   };
 

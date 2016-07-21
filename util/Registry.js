@@ -14,9 +14,10 @@ var _obj = {};
  * @class Registry
  * @private
  */
-function Registry(entries) {
+function Registry(entries, validator) {
   this.entries = {};
   this.names = [];
+  this.validator = validator;
 
   if (entries) {
     forEach(entries, function(entry, name) {
@@ -49,6 +50,9 @@ Registry.Prototype = function() {
    * @memberof module:Basics.Registry.prototype
    */
   this.add = function(name, entry) {
+    if (this.validator) {
+      this.validator(entry);
+    }
     if (_obj[name]) {
       throw new Error('Illegal key: "'+name+'" is a property of Object which is thus not allowed as a key.');
     }
@@ -114,6 +118,24 @@ Registry.Prototype = function() {
         break;
       }
     }
+  };
+
+  this.map = function(callback) {
+    var result = [];
+    this.forEach(function(entry, name) {
+      result.push(callback(entry, name));
+    });
+    return result;
+  };
+
+  this.filter = function(callback) {
+    var result = [];
+    this.forEach(function(entry, name) {
+      if (callback(entry, name)) {
+        result.push(entry);
+      }
+    });
+    return result;
   };
 
 };

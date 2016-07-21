@@ -39,7 +39,6 @@ function DOMImporter(config) {
     } else {
       converter = Converter;
     }
-
     if (!converter.type) {
       console.error('Converter must provide the type of the associated node.', converter);
       return;
@@ -79,35 +78,57 @@ DOMImporter.Prototype = function DOMImporterPrototype() {
     this.state.reset();
   };
 
-  this.createDocument = function(schema) {
-    var doc = this._createDocument(schema);
+  this.createDocument = function() {
+    this.state.doc = this._createDocument(this.config.schema);
+    return this.state.doc;
+  };
+
+  // Note: this is e.g. shared by ClipboardImporter which has a different
+  // implementation of this.createDocument()
+  this._createDocument = function(schema) {
+    // create an empty document and initialize the container if not present
+    var doc = new this.config.DocumentClass(schema);
     return doc;
   };
 
+  // should be called at the end to finish conversion
+  // For instance, the creation of annotation is deferred
+  // to make sure that the nodes they are attached to are created first
+  // TODO: we might want to rethink this in future
+  // as it makes this a bit more complicated
   this.generateDocument = function() {
+    if (!this.state.doc) {
+      this.state.doc = this.createDocument();
+    }
+    var doc = this.state.doc;
+    this._createNodes();
+    return doc;
+  };
+
+  this._createNodes = function() {
+    var state = this.state;
+    var doc = state.doc;
     // creating all nodes
-    var doc = this.createDocument(this.config.schema);
-    this.state.nodes.forEach(function(node) {
+    state.nodes.forEach(function(node) {
       // delete if the node exists already
       if (doc.get(node.id)) {
         doc.delete(node.id);
       }
       doc.create(node);
     });
+    this._createInlineNodes();
+  };
+
+  this._createInlineNodes = function() {
+    var state = this.state;
+    var doc = state.doc;
     // creating annotations afterwards so that the targeted nodes exist for sure
-    this.state.inlineNodes.forEach(function(node) {
+    state.inlineNodes.forEach(function(node) {
       if (doc.get(node.id)) {
         doc.delete(node.id);
       }
       doc.create(node);
     });
-    return doc;
-  };
-
-  this._createDocument = function(schema) {
-    // create an empty document and initialize the container if not present
-    var doc = new this.config.DocumentClass(schema);
-    return doc;
   };
 
   /**
@@ -128,9 +149,9 @@ DOMImporter.Prototype = function DOMImporterPrototype() {
       var node;
       if (blockTypeConverter) {
         node = this._nodeData(el, blockTypeConverter.type);
-        state.pushElementContext(el.tagName);
+        state.pushContext(el.tagName, blockTypeConverter);
         node = blockTypeConverter.import(el, node, this) || node;
-        state.popElementContext();
+        state.popContext();
         this._createAndShow(node);
       } else {
         if (el.isCommentNode()) {
@@ -168,7 +189,15 @@ DOMImporter.Prototype = function DOMImporterPrototype() {
     @returns {object} the created node as JSON
    */
   this.convertElement = function(el) {
-    var node = this._convertElement(el);
+    var doc = this.state.doc;
+    var nodeData = this._convertElement(el);
+    var node;
+    if (doc) {
+      node = doc.create(nodeData);
+    } else {
+      var NodeClass = this.schema.getNodeClass(nodeData.type);
+      node = new NodeClass(doc, nodeData);
+    }
     return node;
   };
 
@@ -177,13 +206,45 @@ DOMImporter.Prototype = function DOMImporterPrototype() {
     var converter = this._getConverterForElement(el, mode);
     if (converter) {
       node = this._nodeData(el, converter.type);
-      this.state.pushElementContext(el.tagName);
-      node = converter.import(el, node, this) || node;
-      this.state.popElementContext();
+      var NodeClass = this.schema.getNodeClass(node.type);
+      this.state.pushContext(el.tagName, converter);
+      // Note: special treatment for property annotations and inline nodes
+      // i.e. if someone calls `importer.convertElement(annoEl)`
+      // usually, annotations are imported in the course of `importer.annotatedText(..)`
+      // The peculiarity here is that in such a case, it is not
+      // not clear, which property the annotation is attached to
+      if (NodeClass.static.isInline) {
+        this._convertInlineNode(el, node, converter);
+      }
+      else if (NodeClass.static.isPropertyAnnotation) {
+        this._convertPropertyAnnotation(el, node);
+      } else {
+        node = converter.import(el, node, this) || node;
+      }
+      this.state.popContext();
       this.createNode(node);
     } else {
       throw new Error('No converter found for '+el.tagName);
     }
+    return node;
+  };
+
+  this._convertPropertyAnnotation = function(el, node) {
+    // if there is no context, this is called stand-alone
+    // i.e., user tries to convert an annotation element
+    // directly, not part of a block element, such as a paragraph
+    node.path = [node.id, '_content'];
+    node._content = this.annotatedText(el, node.path);
+    node.startOffset = 0;
+    node.endOffset = node._content.length;
+  };
+
+  this._convertInlineNode = function(el, node, converter) {
+    node.path = [node.id, 'content'];
+    node._content = '$';
+    node.startOffset = 0;
+    node.endOffset = 1;
+    node = converter.import(el, node, this);
     return node;
   };
 
@@ -271,9 +332,7 @@ DOMImporter.Prototype = function DOMImporterPrototype() {
     this.state.lastChar = '';
     var text;
     var iterator = el.getChildNodeIterator();
-    this.state.pushElementContext(el.tagName);
     text = this._annotatedText(iterator);
-    this.state.popElementContext();
     if (path) {
       state.stack.pop();
       state.preserveWhitespace = false;
@@ -352,9 +411,9 @@ DOMImporter.Prototype = function DOMImporterPrototype() {
       throw new Error('Could not find converter for default type ', defaultTextType);
     }
     var node = this._nodeData(el, defaultTextType);
-    this.state.pushElementContext(el.tagName);
+    this.state.pushContext(el.tagName, converter);
     node = defaultConverter.import(el, node, converter) || node;
-    this.state.popElementContext();
+    this.state.popContext();
     return node;
   };
 
@@ -388,6 +447,7 @@ DOMImporter.Prototype = function DOMImporterPrototype() {
         continue;
       } else if (el.isElementNode()) {
         var inlineTypeConverter = this._getConverterForElement(el, 'inline');
+        // if no inline converter is found we just traverse deeper
         if (!inlineTypeConverter) {
           if (!this.IGNORE_DEFAULT_WARNINGS) {
             console.warn('Unsupported inline element. We will not create an annotation for it, but process its children to extract annotated text.', el.outerHTML);
@@ -405,9 +465,9 @@ DOMImporter.Prototype = function DOMImporterPrototype() {
         if (inlineTypeConverter.import) {
           // push a new context so we can deal with reentrant calls
           state.stack.push({ path: context.path, offset: startOffset, text: ""});
-          state.pushElementContext(el.tagName);
+          state.pushContext(el.tagName, inlineTypeConverter);
           inlineNode = inlineTypeConverter.import(el, inlineNode, this) || inlineNode;
-          state.popElementContext();
+          state.popContext();
 
           var NodeClass = this.schema.getNodeClass(inlineType);
           // inline nodes are attached to an invisible character
@@ -621,15 +681,15 @@ DOMImporter.State.Prototype = function() {
     this.uuid = createCountingIdGenerator();
   };
 
-  this.pushElementContext = function(tagName) {
-    this.contexts.push({ tagName: tagName });
+  this.pushContext = function(tagName, converter) {
+    this.contexts.push({ tagName: tagName, converter: converter});
   };
 
-  this.popElementContext = function() {
+  this.popContext = function() {
     return this.contexts.pop();
   };
 
-  this.getCurrentElementContext = function() {
+  this.getCurrentContext = function() {
     return last(this.contexts);
   };
 
